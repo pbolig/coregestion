@@ -1,0 +1,724 @@
+Estructura del Proyecto:
+
+tu-sistema-gestion/
+├── frontend/
+│   ├── index.html        (Página principal de login)
+│   ├── dashboard.html    (Página del dashboard post-login)
+│   ├── css/
+│   │   └── style.css
+│   ├── js/
+│   │   ├── app.js         (Lógica principal de la app, rutas, carga de módulos)
+│   │   └── api.js         (Funciones para interactuar con el backend)
+│   │   └── auth.js        (Lógica de login/logout, manejo de tokens)
+│   │   └── modules/
+│   │       ├── presupuestos.js  (Lógica y renderizado del módulo de presupuestos)
+│   │       ├── insumos.js       (Lógica y renderizado del módulo de insumos)
+│   │       ├── clientes.js      (Lógica y renderizado del módulo de clientes)
+│   │       └── cuentas_corrientes.js (Lógica y renderizado del módulo de cuentas)
+│   └── assets/           (Imágenes, etc.)
+│
+├── backend/
+│   ├── server.js         (Archivo principal del servidor Express)
+│   ├── db.js             (Módulo para la conexión y operaciones con SQLite)
+│   ├── routes/
+│   │   ├── auth.js       (Rutas de autenticación: login, logout)
+│   │   ├── users.js      (Rutas para gestión de usuarios/roles)
+│   │   ├── presupuestos.js
+│   │   ├── insumos.js
+│   │   ├── clientes.js
+│   │   └── cuentas_corrientes.js
+│   ├── middleware/
+│   │   └── auth.js       (Manejo de tokens JWT, verificación de roles)
+│   ├── models/           (Esquemas de datos o funciones relacionadas con la DB)
+│   │   ├── user.js
+│   │   ├── presupuesto.js
+│   │   ├── insumo.js
+│   │   ├── cliente.js
+│   │   └── cuentaCorriente.js
+│   └── package.json      (Configuración de dependencias de Node.js)
+│
+└── .gitignore
+
+Guía Progresiva (De lo inicial a lo más complejo):
+
+Fase 1: Configuración Básica y Autenticación
+
+    Inicializar el Backend:
+        Crear la carpeta backend.
+        Abrir terminal en backend y ejecutar npm init -y.
+        Instalar Express y SQLite: npm install express sqlite3 jsonwebtoken bcryptjs
+            express: Framework web.
+            sqlite3: Conector para SQLite.
+            jsonwebtoken: Para tokens JWT (JSON Web Tokens) para la autenticación sin estado.
+            bcryptjs: Para encriptar contraseñas.
+
+Crear db.js:
+JavaScript
+
+// backend/db.js
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('./database.db', (err) => {
+    if (err) {
+        console.error(err.message);
+    }
+    console.log('Conectado a la base de datos SQLite.');
+});
+
+// Crear tablas (solo si no existen)
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS clientes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        cuit TEXT UNIQUE,
+        direccion TEXT,
+        telefono TEXT,
+        email TEXT
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS insumos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        stock INTEGER NOT NULL,
+        unidad TEXT
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS presupuestos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente_id INTEGER,
+        fecha TEXT,
+        total REAL,
+        estado TEXT,
+        FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS presupuesto_insumos (
+        presupuesto_id INTEGER,
+        insumo_id INTEGER,
+        cantidad INTEGER,
+        FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id),
+        FOREIGN KEY (insumo_id) REFERENCES insumos(id),
+        PRIMARY KEY (presupuesto_id, insumo_id)
+    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS cuentas_corrientes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente_id INTEGER,
+        fecha TEXT,
+        concepto TEXT,
+        monto REAL,
+        tipo TEXT, -- 'DEBE' o 'HABER'
+        saldo_anterior REAL,
+        saldo_actual REAL,
+        FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+    )`);
+
+    // Insertar usuario de prueba (solo si no existe)
+    const bcrypt = require('bcryptjs');
+    const salt = bcrypt.genSaltSync(10);
+    const hashedPassword = bcrypt.hashSync('admin123', salt);
+    db.get(`SELECT id FROM users WHERE username = ?`, ['admin'], (err, row) => {
+        if (!row) {
+            db.run(`INSERT INTO users (username, password, role) VALUES (?, ?, ?)`, ['admin', hashedPassword, 'admin'], (err) => {
+                if (err) console.error(err.message);
+                else console.log('Usuario admin creado.');
+            });
+        }
+    });
+});
+
+module.exports = db;
+
+Crear server.js:
+JavaScript
+
+// backend/server.js
+const express = require('express');
+const app = express();
+const cors = require('cors'); // Para permitir comunicación entre front y back en puertos diferentes
+const db = require('./db'); // Importa la conexión a la DB
+
+// Middleware
+app.use(express.json()); // Para parsear JSON en las solicitudes
+app.use(cors()); // Habilita CORS
+
+// Rutas (se definirán más adelante)
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const clienteRoutes = require('./routes/clientes');
+const insumoRoutes = require('./routes/insumos');
+const presupuestoRoutes = require('./routes/presupuestos');
+const cuentaCorrienteRoutes = require('./routes/cuentas_corrientes');
+
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/clientes', clienteRoutes);
+app.use('/api/insumos', insumoRoutes);
+app.use('/api/presupuestos', presupuestoRoutes);
+app.use('/api/cuentas-corrientes', cuentaCorrienteRoutes);
+
+// Ruta de prueba
+app.get('/', (req, res) => {
+    res.send('Backend de Gestión listo!');
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Servidor backend corriendo en el puerto ${PORT}`);
+});
+
+Crear backend/routes/auth.js: (Lógica de Login)
+JavaScript
+
+// backend/routes/auth.js
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const db = require('../db');
+
+const JWT_SECRET = 'tu_secreto_super_seguro_cambialo_en_produccion'; // ¡Cambiar en producción!
+
+router.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+        if (err) {
+            return res.status(500).json({ message: 'Error del servidor.' });
+        }
+        if (!user) {
+            return res.status(401).json({ message: 'Usuario o contraseña incorrectos.' });
+        }
+
+        const isMatch = bcrypt.compareSync(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Usuario o contraseña incorrectos.' });
+        }
+
+        const token = jwt.sign(
+            { id: user.id, username: user.username, role: user.role },
+            JWT_SECRET,
+            { expiresIn: '1h' } // Token expira en 1 hora
+        );
+
+        res.json({ token, role: user.role });
+    });
+});
+
+module.exports = router;
+
+Crear backend/middleware/auth.js: (Verificación de Token y Roles)
+JavaScript
+
+    // backend/middleware/auth.js
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = 'tu_secreto_super_seguro_cambialo_en_produccion';
+
+    const authenticateToken = (req, res, next) => {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1]; // Espera "Bearer TOKEN"
+
+        if (!token) {
+            return res.status(401).json({ message: 'Token de autenticación requerido.' });
+        }
+
+        jwt.verify(token, JWT_SECRET, (err, user) => {
+            if (err) {
+                return res.status(403).json({ message: 'Token inválido o expirado.' });
+            }
+            req.user = user; // Guarda la información del usuario en la solicitud
+            next();
+        });
+    };
+
+    const authorizeRoles = (roles) => {
+        return (req, res, next) => {
+            if (!req.user || !roles.includes(req.user.role)) {
+                return res.status(403).json({ message: 'No tiene permisos para acceder a este recurso.' });
+            }
+            next();
+        };
+    };
+
+    module.exports = { authenticateToken, authorizeRoles };
+
+Configurar el Frontend (index.html, js/auth.js, js/app.js):
+
+
+frontend/index.html: Formulario de login simple.
+HTML
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistema de Gestión</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="login-container">
+        <h2>Iniciar Sesión</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Usuario:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Contraseña:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit">Entrar</button>
+            <p id="errorMessage" class="error-message"></p>
+        </form>
+    </div>
+    <script src="js/auth.js"></script>
+</body>
+</html>
+
+frontend/js/auth.js: Lógica de envío del formulario de login.
+JavaScript
+
+// frontend/js/auth.js
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const errorMessage = document.getElementById('errorMessage');
+
+    try {
+        const response = await fetch('http://localhost:3000/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('userRole', data.role);
+            window.location.href = 'dashboard.html'; // Redirige al dashboard
+        } else {
+            errorMessage.textContent = data.message || 'Error al iniciar sesión.';
+        }
+    } catch (error) {
+        console.error('Error de red:', error);
+        errorMessage.textContent = 'Error de conexión con el servidor.';
+    }
+});
+
+frontend/dashboard.html: Página de bienvenida y esqueleto para cargar módulos.
+HTML
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Sistema de Gestión</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <h1>Bienvenido al Sistema de Gestión</h1>
+        <nav id="mainNav">
+            </nav>
+        <button id="logoutButton">Cerrar Sesión</button>
+    </header>
+    <main id="appContent">
+        </main>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+
+frontend/js/app.js: Lógica del dashboard y control de acceso.
+JavaScript
+
+// frontend/js/app.js
+const userRole = localStorage.getItem('userRole');
+const token = localStorage.getItem('token');
+const appContent = document.getElementById('appContent');
+const mainNav = document.getElementById('mainNav');
+const logoutButton = document.getElementById('logoutButton');
+
+// Módulos disponibles y sus roles de acceso
+const modules = {
+    'presupuestos': {
+        name: 'Presupuestos',
+        roles: ['admin', 'ventas'],
+        path: 'js/modules/presupuestos.js'
+    },
+    'insumos': {
+        name: 'Gestión de Insumos',
+        roles: ['admin', 'almacen'],
+        path: 'js/modules/insumos.js'
+    },
+    'clientes': {
+        name: 'Gestión de Clientes',
+        roles: ['admin', 'ventas', 'cobranzas'],
+        path: 'js/modules/clientes.js'
+    },
+    'cuentas-corrientes': {
+        name: 'Cuentas Corrientes',
+        roles: ['admin', 'cobranzas'],
+        path: 'js/modules/cuentas_corrientes.js'
+    }
+};
+
+// Redirigir si no hay token o rol
+if (!token || !userRole) {
+    window.location.href = 'index.html';
+}
+
+// Renderizar navegación según el rol
+function renderNavigation() {
+    mainNav.innerHTML = '';
+    for (const key in modules) {
+        if (modules[key].roles.includes(userRole)) {
+            const navItem = document.createElement('a');
+            navItem.href = '#';
+            navItem.textContent = modules[key].name;
+            navItem.onclick = () => loadModule(key);
+            mainNav.appendChild(navItem);
+        }
+    }
+}
+
+// Cargar módulo
+async function loadModule(moduleName) {
+    const moduleInfo = modules[moduleName];
+    if (!moduleInfo || !moduleInfo.roles.includes(userRole)) {
+        appContent.innerHTML = '<p>Acceso denegado a este módulo.</p>';
+        return;
+    }
+
+    try {
+        // Importar dinámicamente el módulo JS
+        const module = await import(`./modules/${moduleName}.js`);
+        // Ejecutar una función de inicialización del módulo si existe
+        if (module.render) {
+            module.render(appContent); // Pasar el contenedor donde renderizar
+        } else {
+            appContent.innerHTML = `<h2>${moduleInfo.name}</h2><p>Contenido del módulo en desarrollo.</p>`;
+        }
+    } catch (error) {
+        console.error(`Error cargando el módulo ${moduleName}:`, error);
+        appContent.innerHTML = `<p>Error al cargar el módulo ${moduleInfo.name}.</p>`;
+    }
+}
+
+// Lógica de logout
+logoutButton.addEventListener('click', () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
+    window.location.href = 'index.html';
+});
+
+// Inicializar
+renderNavigation();
+// Cargar un módulo por defecto al iniciar (ej. Clientes)
+loadModule('clientes');
+
+frontend/js/api.js: Funciones genéricas para interactuar con el backend.
+JavaScript
+
+// frontend/js/api.js
+const API_BASE_URL = 'http://localhost:3000/api';
+
+async function fetchData(endpoint, options = {}) {
+    const token = localStorage.getItem('token');
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers // Mantener otros headers si los hay
+    };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`<span class="math-inline">\{API\_BASE\_URL\}/</span>{endpoint}`, {
+        ...options,
+        headers: headers,
+    });
+
+    if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            // Si el token es inválido o no autorizado, redirigir al login
+            localStorage.removeItem('token');
+            localStorage.removeItem('userRole');
+            window.location.href = 'index.html';
+        }
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error en la solicitud.');
+    }
+
+    return response.json();
+}
+
+frontend/css/style.css: (Estilos muy básicos para empezar)
+CSS
+
+        /* frontend/css/style.css */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .login-container {
+            width: 300px;
+            margin: 100px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box; /* Para que el padding no aumente el ancho */
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .error-message {
+            color: red;
+            margin-top: 10px;
+        }
+
+        header {
+            background-color: #333;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 20px;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        nav a:hover {
+            background-color: #555;
+        }
+
+        main {
+            padding: 20px;
+            flex-grow: 1; /* Ocupa el espacio restante */
+        }
+
+        #logoutButton {
+            background-color: #dc3545;
+        }
+        #logoutButton:hover {
+            background-color: #c82333;
+        }
+
+Fase 2: Desarrollo de Módulos (Gestión de Datos)
+
+    Crear Rutas y Modelos del Backend:
+        Para cada módulo (Clientes, Insumos, Presupuestos, Cuentas Corrientes), crear archivos en backend/routes/ y backend/models/.
+        
+Ejemplo backend/routes/clientes.js:
+JavaScript
+
+    // backend/routes/clientes.js
+    const express = require('express');
+    const router = express.Router();
+    const db = require('../db');
+    const { authenticateToken, authorizeRoles } = require('../middleware/auth');
+
+    // Obtener todos los clientes (solo admin y ventas)
+    router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobranzas']), (req, res) => {
+        db.all(`SELECT * FROM clientes`, [], (err, rows) => {
+            if (err) {
+                return res.status(500).json({ message: err.message });
+            }
+            res.json(rows);
+        });
+    });
+
+    // Crear un nuevo cliente (solo admin y ventas)
+    router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), (req, res) => {
+        const { nombre, cuit, direccion, telefono, email } = req.body;
+        db.run(`INSERT INTO clientes (nombre, cuit, direccion, telefono, email) VALUES (?, ?, ?, ?, ?)`,
+            [nombre, cuit, direccion, telefono, email],
+            function(err) {
+                if (err) {
+                    return res.status(500).json({ message: err.message });
+                }
+                res.status(201).json({ id: this.lastID, message: 'Cliente creado exitosamente.' });
+            }
+        );
+    });
+
+    // Más rutas: GET /clientes/:id, PUT /clientes/:id, DELETE /clientes/:id
+    // ...
+
+    module.exports = router;
+
+Integrar Módulos en el Frontend:
+
+
+
+    Crear archivos en frontend/js/modules/ para la lógica y renderizado de cada módulo.
+    Ejemplo frontend/js/modules/clientes.js:
+    JavaScript
+
+        // frontend/js/modules/clientes.js
+        import { fetchData } from '../api.js';
+
+        export async function render(container) {
+            container.innerHTML = `
+                <h2>Gestión de Clientes</h2>
+                <button id="addClientBtn">Agregar Cliente</button>
+                <div id="clientFormContainer" style="display:none;">
+                    <h3>Nuevo Cliente</h3>
+                    <form id="newClientForm">
+                        <input type="text" id="clientName" placeholder="Nombre" required><br>
+                        <input type="text" id="clientCuit" placeholder="CUIT" required><br>
+                        <input type="text" id="clientAddress" placeholder="Dirección"><br>
+                        <input type="text" id="clientPhone" placeholder="Teléfono"><br>
+                        <input type="email" id="clientEmail" placeholder="Email"><br>
+                        <button type="submit">Guardar Cliente</button>
+                        <button type="button" id="cancelAddClient">Cancelar</button>
+                    </form>
+                </div>
+                <div id="clientList">
+                    <h3>Listado de Clientes</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>CUIT</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientsTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            `;
+
+            const addClientBtn = document.getElementById('addClientBtn');
+            const clientFormContainer = document.getElementById('clientFormContainer');
+            const newClientForm = document.getElementById('newClientForm');
+            const cancelAddClient = document.getElementById('cancelAddClient');
+
+            addClientBtn.onclick = () => clientFormContainer.style.display = 'block';
+            cancelAddClient.onclick = () => clientFormContainer.style.display = 'none';
+
+            newClientForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const newClient = {
+                    nombre: document.getElementById('clientName').value,
+                    cuit: document.getElementById('clientCuit').value,
+                    direccion: document.getElementById('clientAddress').value,
+                    telefono: document.getElementById('clientPhone').value,
+                    email: document.getElementById('clientEmail').value,
+                };
+                try {
+                    await fetchData('clientes', { method: 'POST', body: JSON.stringify(newClient) });
+                    alert('Cliente agregado!');
+                    clientFormContainer.style.display = 'none';
+                    loadClients(); // Recargar la lista de clientes
+                } catch (error) {
+                    alert('Error al agregar cliente: ' + error.message);
+                }
+            });
+
+            loadClients();
+        }
+
+        async function loadClients() {
+            const clientsTableBody = document.getElementById('clientsTableBody');
+            clientsTableBody.innerHTML = '<tr><td colspan="3">Cargando clientes...</td></tr>';
+            try {
+                const clients = await fetchData('clientes');
+                clientsTableBody.innerHTML = '';
+                clients.forEach(client => {
+                    const row = clientsTableBody.insertRow();
+                    row.innerHTML = `
+                        <td><span class="math-inline">\{client\.nombre\}</td\>
+
+<td>{client.cuit}</td>
+<td>
+<button onclick="alert('Editar ${client.nombre}')">Editar</button>
+<button onclick="alert('Eliminar ${client.nombre}')">Eliminar</button>
+</td>
+; }); } catch (error) { clientsTableBody.innerHTML =<tr><td colspan="3">Error: ${error.message}</td></tr>`;
+}
+}
+```
+
+Fase 3: Lógica de Negocio y Permisos
+
+    Control de Insumos y Stock:
+        En el backend, al crear un presupuesto que incluya insumos, deberás tener lógica para:
+            Restar los insumos del stock disponible.
+            Validar que haya suficiente stock antes de confirmar un presupuesto.
+            Manejar la devolución de stock si un presupuesto se cancela.
+    Cuentas Corrientes:
+        Implementar rutas para registrar movimientos (pagos, cargos) y calcular saldos en las cuentas corrientes de los clientes. Cada movimiento afectará el saldo.
+        Esto implica obtener el saldo anterior, calcular el nuevo saldo y guardar ambos en el registro del movimiento.
+    Roles y Permisos:
+        Extender el authorizeRoles middleware en el backend para proteger cada ruta API según los roles definidos (admin, ventas, almacén, cobranzas).
+        En el frontend, la navegación ya se adapta al rol, pero cada módulo debe tener la lógica para ocultar o deshabilitar elementos de UI si el usuario no tiene permisos (ej. un vendedor no puede modificar stock, solo ver).
+
+Cómo Ponerlo en Marcha (Pasos de Ejecución):
+
+    Abrir dos terminales:
+        En la primera terminal, navega a la carpeta backend/.
+        Ejecuta: node server.js (Esto iniciará tu servidor backend).
+    Abrir el Frontend:
+        En tu navegador web, abre el archivo frontend/index.html directamente.
+        Ingresa las credenciales de prueba (Usuario: admin, Contraseña: admin123).
+		

@@ -1,0 +1,15 @@
+# Dependencias de Node.js
+node_modules/
+
+# Archivos de log
+*.log
+
+# Archivos de configuración de IDE (ej. VS Code)
+.vscode/
+
+# Archivos de compilación (si los hubiera, ej. dist/)
+dist/
+build/
+
+# Archivos temporales
+tmp/
