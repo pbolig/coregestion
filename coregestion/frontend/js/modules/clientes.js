@@ -60,43 +60,77 @@ export async function render(container) {
         }
     });
 
-    loadClients();
+    loadClients(); // Llama a la función para cargar los clientes al renderizar el módulo
 }
 
-// ... (código anterior de clientes.js)
-
-async function loadClients() {
+// Función para cargar y mostrar los clientes en la tabla
+async function loadClients() { // <-- Nombre de la función corregido
     const clientsTableBody = document.getElementById('clientsTableBody');
     clientsTableBody.innerHTML = '<tr><td colspan="3">Cargando clientes...</td></tr>';
     try {
-        const clients = await fetchData('clientes');
-        clientsTableBody.innerHTML = '';
-        clients.forEach(client => { // <-- Aquí comienza el bucle para cada cliente
+        const clients = await fetchData('clientes'); // Llama al backend para obtener los clientes
+        clientsTableBody.innerHTML = ''; // Limpia el mensaje de carga
+        clients.forEach(client => {
             const row = clientsTableBody.insertRow(); // Crea una nueva fila en la tabla
-            row.innerHTML = `  // <-- Aquí se asigna el HTML a la fila usando un template literal
+            row.innerHTML = `
                 <td>${client.nombre}</td>
                 <td>${client.cuit}</td>
                 <td>
-                    <button onclick="alert('Editar ${client.nombre}')">Editar</button>
-                    <button onclick="alert('Eliminar ${client.nombre}')">Eliminar</button>
+                    <button onclick="editClient('${client.id}', '${client.nombre}')">Editar</button>
+                    <button onclick="deleteClient('${client.id}', '${client.nombre}')">Eliminar</button>
                 </td>
-            `; // <-- CIERRE CORRECTO DEL TEMPLATE LITERAL
-        }); // <-- CIERRE CORRECTO DEL forEach
+            `;
+        });
     } catch (error) {
-        clientsTableBody.innerHTML = `<tr><td colspan="3">Error: ${error.message}</td></tr>`; // <-- CIERRE CORRECTO DEL TEMPLATE LITERAL
+        console.error('Error al cargar clientes para la grilla:', error); // DEBUG en consola
+        clientsTableBody.innerHTML = `<tr><td colspan="3">Error: ${error.message}</td></tr>`; // Muestra error en la grilla
     }
-}
-
-// **Funciones de ejemplo para editar y eliminar (deberás implementarlas)**
-// Es una buena práctica separar la lógica de los event handlers
-function editClient(clientId, clientName) {
-    alert(`Editar cliente: ${clientName} (ID: ${clientId})`);
-    // Aquí iría tu lógica para abrir un modal de edición o navegar a una página de edición
 }
 
 function deleteClient(clientId, clientName) {
     if (confirm(`¿Estás seguro de que quieres eliminar a ${clientName}?`)) {
+        // Aquí iría tu lógica para enviar una solicitud DELETE a la API del backend
         alert(`Eliminar cliente: ${clientName} (ID: ${clientId})`);
-        // Aquí iría tu lógica para enviar una solicitud DELETE a la API
     }
+}
+
+function editClient(clientId, clientName) {
+    // En un sistema real, aquí cargarías un modal con los datos del cliente
+    // y permitirías la edición. Por ahora, un simple alert/prompt para demostrar.
+
+    // Simulación: Obtener datos del cliente (esto es lo que harías con fetchData)
+    fetchData(`clientes/${clientId}`)
+        .then(clientData => {
+            alert(`Editar cliente: ${clientData.nombre} (CUIT: ${clientData.cuit})`);            
+
+            // Para simular la edición con prompt:
+            const newName = prompt(`Nuevo nombre para ${clientData.nombre}:`, clientData.nombre);
+            if (newName !== null && newName !== clientData.nombre) {
+                // Si el usuario ingresó un nuevo nombre, enviamos la actualización
+                fetchData(`clientes/${clientId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        nombre: newName,
+                        cuit: clientData.cuit, // Mantener los demás datos
+                        direccion: clientData.direccion,
+                        telefono: clientData.telefono,
+                        email: clientData.email
+                    })
+                })
+                .then(response => {
+                    alert(response.message || `Cliente ${newName} actualizado exitosamente.`);
+                    loadClients(); // Recargar la lista
+                })
+                .catch(error => {
+                    alert(`Error al actualizar cliente: ${error.message}`);
+                    console.error('Error al actualizar cliente:', error);
+                });
+            } else if (newName === null) {
+                alert('Edición cancelada.');
+            }
+        })
+        .catch(error => {
+            alert(`Error al obtener datos del cliente para editar: ${error.message}`);
+            console.error('Error al obtener cliente para edición:', error);
+        });
 }
