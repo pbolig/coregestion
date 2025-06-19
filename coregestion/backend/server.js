@@ -12,6 +12,9 @@ app.use(cors()); // Habilita CORS
 // --- CONFIGURACIÓN PARA SERVIR ARCHIVOS ESTÁTICOS DEL FRONTEND ---
 // La carpeta 'frontend' está en el mismo nivel que 'backend'
 app.use(express.static(path.join(__dirname, '../frontend')));
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
 
 // Ruta principal del frontend (sirve index.html para la raíz del dominio)
 // Si la dejas, colócala ANTES de app.get('*') para que tenga prioridad.
@@ -27,6 +30,7 @@ const clienteRoutes = require('./routes/clientes');
 const insumoRoutes = require('./routes/insumos');
 const presupuestoRoutes = require('./routes/presupuestos');
 const cuentaCorrienteRoutes = require('./routes/cuentas_corrientes');
+const proveedorRoutes = require('./routes/proveedores');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -34,6 +38,7 @@ app.use('/api/clientes', clienteRoutes);
 app.use('/api/insumos', insumoRoutes);
 app.use('/api/presupuestos', presupuestoRoutes);
 app.use('/api/cuentas-corrientes', cuentaCorrienteRoutes);
+app.use('/api/proveedores', proveedorRoutes); 
 
 // --- Ruta Catch-All para el Frontend (debe ir al final de todas las rutas de API) ---
 // Sirve el index.html para cualquier ruta que no sea una API o un archivo estático conocido.
