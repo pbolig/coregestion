@@ -42,27 +42,15 @@ router.post('/:id/aprobar', authenticateToken, authorizeRoles(['admin', 'ventas'
         await db.run('BEGIN TRANSACTION');
         
         const prospecto = await db.get('SELECT * FROM prospectos WHERE id = ?', [id]);
-        if (!prospecto) {
-            throw new Error('Prospecto no encontrado.');
-        }
-        if (prospecto.estado !== 'Pendiente') {
-            throw new Error(`El prospecto ya se encuentra en estado '${prospecto.estado}'.`);
-        }
+        if (!prospecto) throw new Error('Prospecto no encontrado.');
+        if (prospecto.estado !== 'Pendiente') throw new Error(`El prospecto ya se encuentra en estado '${prospecto.estado}'.`);
 
-        // Crear el nuevo cliente en la tabla 'clientes'
-        const clienteData = {
-            nombre: prospecto.nombre,
-            cuit: null, // El CUIT se puede completar luego
-            direccion: null,
-            telefono: prospecto.telefono,
-            email: prospecto.email
-        };
+        const clienteData = { nombre: prospecto.nombre, cuit: null, direccion: null, telefono: prospecto.telefono, email: prospecto.email };
         await db.run(
             'INSERT INTO clientes (nombre, cuit, direccion, telefono, email) VALUES (?, ?, ?, ?, ?)',
             [clienteData.nombre, clienteData.cuit, clienteData.direccion, clienteData.telefono, clienteData.email]
         );
         
-        // Actualizar el estado del prospecto a 'Aprobado'
         await db.run("UPDATE prospectos SET estado = 'Aprobado' WHERE id = ?", [id]);
 
         await db.run('COMMIT');
@@ -96,6 +84,5 @@ router.post('/:id/rechazar', authenticateToken, authorizeRoles(['admin', 'ventas
         res.status(500).json({ message: 'Error al rechazar el prospecto.', error: err.message });
     }
 });
-
 
 module.exports = router;

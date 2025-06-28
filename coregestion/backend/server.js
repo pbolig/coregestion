@@ -1,20 +1,13 @@
 // backend/server.js
-
-// --- IMPORTACIONES DE PAQUETES ---
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
 const morgan = require('morgan');
 require('dotenv').config();
-
-// --- CONEXIÓN A LA BASE DE DATOS ---
 const db = require('./db');
-
-// --- INICIALIZACIÓN DE EXPRESS ---
 const app = express();
 
-// --- MIDDLEWARES GENERALES ---
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -25,11 +18,10 @@ app.use(helmet({
         },
     },
 }));
+
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
-
-// --- CONFIGURACIÓN PARA SERVIR ARCHIVOS ESTÁTICOS DEL FRONTEND ---
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // --- RUTAS DE API ---
@@ -46,6 +38,8 @@ const roleRoutes = require('./routes/roles');
 const compraRoutes = require('./routes/compras');
 const prospectoRoutes = require('./routes/prospectos');
 const solicitudRoutes = require('./routes/solicitudes');
+const conceptosCCRoutes = require('./routes/conceptos_cc');
+const facturacionRoutes = require('./routes/facturacion');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
@@ -60,13 +54,13 @@ app.use('/api/roles', roleRoutes);
 app.use('/api/compras', compraRoutes);
 app.use('/api/prospectos', prospectoRoutes);
 app.use('/api/solicitudes', solicitudRoutes);
+app.use('/api/conceptos-cc', conceptosCCRoutes);
+app.use('/api/facturacion', facturacionRoutes);
 
-// --- RUTA CATCH-ALL PARA EL FRONTEND (MANEJO DE SPA) ---
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/index.html'));
-});
+// RUTA CATCH-ALL
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
 
-// --- MIDDLEWARE DE MANEJO DE ERRORES ---
+// MANEJO DE ERRORES
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).send({ message: 'Algo salió mal en el servidor!', error: err.message });
