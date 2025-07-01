@@ -12,9 +12,9 @@ const modules = {
         roles: ['admin', 'ventas'],
         path: 'js/modules/presupuestos.js'
     },
-    'insumos': {
+    'insumos': { 
         name: 'Gestión de Insumos',
-        roles: ['admin', 'almacen'],
+        roles: ['admin', 'almacen'], 
         path: 'js/modules/insumos.js'
     },
     'clientes': {
@@ -26,7 +26,12 @@ const modules = {
         name: 'Cuentas Corrientes',
         roles: ['admin', 'cobranzas'],
         path: 'js/modules/cuentas-corrientes.js'
-    }
+    },
+    'proveedores': {
+        name: 'Gestión de Proveedores',
+        roles: ['admin', 'almacen', 'compras'], // Roles que pueden acceder
+        path: 'js/modules/proveedores.js'
+    },
 };
 
 // Redirigir si no hay token o rol

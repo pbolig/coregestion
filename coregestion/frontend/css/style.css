@@ -1,98 +1,397 @@
 /* frontend/css/style.css */
+
+/* --- :ROOT - VARIABLES GLOBALES DEL TEMA --- */
+/* En este bloque definimos todos los colores, fuentes y medidas
+   para que sean fáciles de cambiar y mantener en toda la aplicación. */
+:root {
+    /* Paleta de Colores Principal */
+    --color-primary: #007bff;
+    --color-primary-dark: #0056b3;
+    --color-secondary: #6c757d;
+    --color-secondary-dark: #5a6268;
+    
+    /* Colores de Acciones y Estados */
+    --color-success: #28a745;
+    --color-success-dark: #218838;
+    --color-danger: #dc3545;
+    --color-danger-dark: #c82333;
+    --color-warning: #ffc107;
+    --color-warning-dark: #e0a800;
+    --color-info: #17a2b8;
+    
+    /* Paleta de Grises y Fondos */
+    --color-bg: #f8f9fa;
+    --color-bg-dark: #e9ecef;
+    --color-bg-surface: #ffffff;
+    --color-border: #dee2e6;
+    --color-text-primary: #212529;
+    --color-text-secondary: #495057;
+    --color-text-light: #ffffff;
+
+    /* Tipografía */
+    --font-family-base: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+    --font-size-base: 16px;
+    --font-weight-normal: 400;
+    --font-weight-bold: 700;
+
+    /* Medidas y Bordes */
+    --border-radius-sm: 4px;
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 6px 15px rgba(0, 0, 0, 0.1);
+    
+    /* Transiciones */
+    --transition-fast: 0.2s ease;
+}
+
+
+/* --- ESTILOS GENERALES Y RESET --- */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 body {
-	font-family: Arial, sans-serif;
-	margin: 0;
-	padding: 0;
-	background-color: #f4f4f4;
-	color: #333;
-	display: flex;
-	flex-direction: column;
-	min-height: 100vh;
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+    background-color: var(--color-bg);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    
+    /* Fondo con imagen y capa semitransparente */
+    background-image: linear-gradient(rgba(248, 249, 250, 0.85), rgba(248, 249, 250, 0.85)), url('../assets/img/backgroundmain.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
+
+
+/* --- LAYOUT Y CONTENEDORES PRINCIPALES --- */
+.container {
+    width: 95%;
+    max-width: 1400px;
+    margin: 2rem auto;
+    padding: 1.5rem;
+    background-color: var(--color-bg-surface);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--color-border);
+}
+
+.login-page-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-grow: 1;
 }
 
 .login-container {
-	width: 300px;
-	margin: 100px auto;
-	padding: 20px;
-	background-color: #fff;
-	border-radius: 8px;
-	box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-	text-align: center;
-}
-
-.form-group {
-	margin-bottom: 15px;
-	text-align: left;
-}
-
-.form-group label {
-	display: block;
-	margin-bottom: 5px;
-	font-weight: bold;
-}
-
-.form-group input[type="text"],
-.form-group input[type="password"] {
-	width: 100%;
-	padding: 10px;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	box-sizing: border-box; /* Para que el padding no aumente el ancho */
-}
-
-button {
-	background-color: #007bff;
-	color: white;
-	padding: 10px 15px;
-	border: none;
-	border-radius: 4px;
-	cursor: pointer;
-	font-size: 16px;
-}
-
-button:hover {
-	background-color: #0056b3;
-}
-
-.error-message {
-	color: red;
-	margin-top: 10px;
-}
-
-header {
-	background-color: #333;
-	color: white;
-	padding: 15px 20px;
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-}
-
-header h1 {
-	margin: 0;
-	font-size: 24px;
-}
-
-nav a {
-	color: white;
-	text-decoration: none;
-	margin-left: 20px;
-	padding: 5px 10px;
-	border-radius: 4px;
-}
-
-nav a:hover {
-	background-color: #555;
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem;
+    background-color: var(--color-bg-surface);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--shadow-md);
+    text-align: center;
 }
 
 main {
-	padding: 20px;
-	flex-grow: 1; /* Ocupa el espacio restante */
+    flex-grow: 1;
+}
+
+
+/* --- HEADER Y NAVEGACIÓN --- */
+header {
+    background-color: #343a40;
+    color: var(--color-text-light);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--color-text-light);
+}
+
+/* --- CAMBIO AQUÍ --- */
+header nav {
+    display: flex;       /* Hacemos que la navegación sea un contenedor flexible */
+    flex-wrap: wrap;     /* Permite que los elementos pasen a la siguiente línea si no hay espacio */
+    align-items: center; /* Centra los elementos verticalmente */
+    gap: 1rem;           /* APLICA UN ESPACIO CONSISTENTE (1rem) ENTRE CADA ELEMENTO DEL MENÚ */
+}
+
+header nav a {
+    color: var(--color-text-light);
+    text-decoration: none;
+    /* margin-left se elimina para usar 'gap' que es más moderno y consistente */
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius-sm);
+    transition: background-color var(--transition-fast);
+}
+/* --- FIN DEL CAMBIO --- */
+
+
+header nav a:hover {
+    background-color: var(--color-text-secondary);
 }
 
 #logoutButton {
-	background-color: #dc3545;
+    background-color: var(--color-danger);
+    color: var(--color-text-light);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
 }
+
 #logoutButton:hover {
-	background-color: #c82333;
+    background-color: var(--color-danger-dark);
+}
+
+
+/* --- TÍTULOS Y TEXTOS --- */
+h1, h2, h3, h4 {
+    color: var(--color-primary-dark);
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+}
+
+h2 { font-size: 1.8rem; }
+h3 { font-size: 1.4rem; color: var(--color-text-primary); }
+h4 { font-size: 1.1rem; color: var(--color-text-secondary); border-bottom: 1px dashed var(--color-border); padding-bottom: 0.5rem; }
+
+.error-message {
+    color: var(--color-danger);
+    font-weight: var(--font-weight-bold);
+    margin-top: 1rem;
+}
+
+
+/* --- ESTILOS DE FORMULARIOS --- */
+.form-container {
+    background-color: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    padding: 1.5rem;
+    margin-top: 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: flex-end;
+}
+
+.form-group {
+    flex: 1 1 250px; /* Base para 3 columnas, flexible */
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    margin-bottom: 0.5rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-secondary);
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    font-size: 1rem;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.form-actions {
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+
+/* --- ESTILOS DE BOTONES (Sistema de Clases) --- */
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: var(--font-weight-bold);
+    text-align: center;
+    transition: background-color var(--transition-fast), transform var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+}
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-primary { background-color: var(--color-primary); color: var(--color-text-light); }
+.btn-primary:hover { background-color: var(--color-primary-dark); }
+
+.btn-secondary { background-color: var(--color-secondary); color: var(--color-text-light); }
+.btn-secondary:hover { background-color: var(--color-secondary-dark); }
+
+.btn-danger { background-color: var(--color-danger); color: var(--color-text-light); }
+.btn-danger:hover { background-color: var(--color-danger-dark); }
+
+.btn-warning { background-color: var(--color-warning); color: var(--color-text-primary); }
+.btn-warning:hover { background-color: var(--color-warning-dark); }
+
+.btn-success { background-color: var(--color-success); color: var(--color-text-light); }
+.btn-success:hover { background-color: var(--color-success-dark); }
+
+.btn-sm { /* Botón pequeño para acciones en tablas */
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
+
+/* --- ESTILOS DE TABLAS / GRILLAS --- */
+.table-container {
+    overflow-x: auto; /* Permite scroll horizontal en pantallas chicas */
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 2rem;
+    background-color: var(--color-bg-surface);
+}
+
+th, td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+    vertical-align: middle;
+}
+
+thead th {
+    background-color: var(--color-bg-dark);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    font-size: 0.9em;
+    text-align: center;
+}
+
+tbody tr {
+    transition: background-color var(--transition-fast);
+}
+
+tbody tr:hover {
+    background-color: #f0f8ff; /* Azulado claro */
+}
+
+td.actions-cell {
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap; /* Para que los botones se acomoden en pantallas chicas */
+}
+
+td input.edit-input {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--border-radius-sm);
+}
+
+/* Mensajes de "Cargando..." o "Error" en la tabla */
+tbody tr td[colspan] {
+    text-align: center;
+    font-style: italic;
+    color: var(--color-text-secondary);
+    padding: 2rem;
+}
+
+/* --- ESTILOS ESPECÍFICOS PARA FORMULARIOS COMPLEJOS (PRESUPUESTOS, COMPRAS) --- */
+.item-list-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.item-row {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    background-color: var(--color-bg-dark);
+    padding: 0.75rem;
+    border-radius: var(--border-radius-md);
+}
+
+.item-row select { flex: 3; } /* El selector de insumo ocupa más espacio */
+.item-row input { flex: 1; text-align: right; }
+.item-row .btn-danger {
+    padding: 0.5rem;
+    width: 35px;
+    height: 35px;
+    line-height: 1;
+    border-radius: 50%;
+}
+
+
+/* --- DISEÑO RESPONSIVO --- */
+@media (max-width: 992px) {
+    .container {
+        width: 100%;
+        margin: 1rem 0;
+        border-radius: 0;
+    }
+
+    .form-container {
+        gap: 1rem;
+    }
+
+    .form-group {
+        flex-basis: calc(50% - 1rem); /* 2 columnas en tablets */
+    }
+}
+
+@media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    header nav {
+        justify-content: center;
+        gap: 0.5rem; /* Espacio más pequeño en móvil */
+    }
+
+    .form-group {
+        flex-basis: 100%; /* 1 columna en móviles */
+    }
+
+    td.actions-cell {
+        min-width: 120px; /* Para dar espacio a los botones */
+    }
 }

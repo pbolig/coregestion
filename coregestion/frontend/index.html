@@ -1,27 +1,173 @@
-<!--frontend/index.html-->
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Sistema de Gestión</title>
+    <title>CoreGestión - Sistema de Gestión</title>
     <link rel="stylesheet" href="css/style.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-    <div class="login-container">
-        <h2>Iniciar Sesión</h2>
-        <form id="loginForm"> <div class="form-group">
-                <label for="username">Usuario:</label>
-                <input type="text" id="username" name="username" required>
+
+    <div id="app">
+
+        <!-- ====================================================== -->
+        <!-- VISTA DE BIENVENIDA INICIAL                            -->
+        <!-- ====================================================== -->
+        <div id="welcomeView" style="display: none;">
+            <div class="login-page-wrapper">
+                <div class="login-container">
+                    <h1>Bienvenido a CoreGestión</h1>
+                    <p>Seleccione cómo desea ingresar:</p>
+                    <div class="form-actions" style="flex-direction: column; gap: 1rem; margin-top: 1.5rem;">
+                        <button id="goToInternalLoginBtn" class="btn btn-primary" style="width: 100%;">Acceder al Sistema Interno</button>
+                        <button id="goToPortalLoginBtn" class="btn btn-secondary" style="width: 100%;">Ingresar al Portal de Clientes</button>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="password">Contraseña:</label>
-                <input type="password" id="password" name="password" required>
+        </div>
+
+        <!-- ====================================================== -->
+        <!-- VISTA DE LOGIN INTERNO                                 -->
+        <!-- ====================================================== -->
+        <div id="internalLoginView" style="display: none;">
+            <div class="login-page-wrapper">
+                <div class="login-container">
+                    <h1>Acceso Interno</h1>
+                    <form id="loginForm">
+                        <div class="form-group"><label for="username">Usuario</label><input type="text" id="username" required autocomplete="username"></div>
+                        <div class="form-group"><label for="password">Contraseña</label><input type="password" id="password" required autocomplete="current-password"></div>
+                        <div class="form-actions" style="margin-top: 1.5rem; justify-content: space-between; align-items: center;">
+                            <button type="submit" class="btn btn-primary">Entrar</button>
+                            <a href="#" id="backToWelcomeFromInternal" class="back-link">Volver</a>
+                        </div>
+                        <p id="errorMessage" class="error-message" style="min-height: 20px;"></p>
+                    </form>
+                </div>
             </div>
-            <button type="submit">Entrar</button>
-            <p id="errorMessage" class="error-message"></p>
-        </form>
+        </div>
+        
+        <!-- ====================================================== -->
+        <!-- VISTA DE LOGIN DEL PORTAL                              -->
+        <!-- ====================================================== -->
+        <div id="portalLoginView" style="display: none;">
+             <div class="login-page-wrapper">
+                <div class="login-container">
+                    <h1>Portal de Clientes</h1>
+                    <form id="portalLoginForm">
+                        <div class="form-group"><label for="portalEmail">Email</label><input type="email" id="portalEmail" required autocomplete="email"></div>
+                        <div class="form-group"><label for="portalPassword">Contraseña</label><input type="password" id="portalPassword" required autocomplete="current-password"></div>
+                        <div class="form-actions" style="margin-top: 1.5rem; justify-content: space-between; align-items: center;">
+                            <button type="submit" class="btn btn-primary">Ingresar</button>
+                             <a href="#" id="backToWelcomeFromPortalLogin" class="back-link">Volver</a>
+                        </div>
+                    </form>
+                    <div style="display: flex; align-items: center; gap: 1rem; margin: 1.5rem 0;">
+                        <hr style="flex-grow: 1;"><span style="color: var(--color-text-secondary);">O</span><hr style="flex-grow: 1;">
+                    </div>
+                    <div id="googleSignInBtn" style="display: flex; justify-content: center;"></div>
+                    <p style="margin-top: 1.5rem;">¿No tenés una cuenta? <a href="#" id="goToRegisterBtn">Registrate aquí</a></p>
+                    <p style="margin-top: 0.5rem;"><a href="#" id="goToForgotPasswordBtn">¿Olvidaste tu contraseña?</a></p>
+                    <p id="portalErrorMessage" class="error-message" style="min-height: 20px;"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================== -->
+        <!-- VISTA DE "OLVIDÉ MI CONTRASEÑA"                        -->
+        <!-- ====================================================== -->
+        <div id="forgotPasswordView" style="display: none;">
+            <div class="login-page-wrapper">
+                <div class="login-container">
+                    <h2>Recuperar Contraseña</h2>
+                    <p>Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.</p>
+                    <form id="forgotPasswordForm">
+                        <div class="form-group"><label for="forgotEmail">Email</label><input type="email" id="forgotEmail" required></div>
+                        <div class="form-actions" style="margin-top: 1.5rem; justify-content: space-between; align-items: center;">
+                            <button type="submit" class="btn btn-primary">Enviar Enlace</button>
+                            <a href="#" id="backToPortalLoginFromForgot" class="back-link">Volver al Login</a>
+                        </div>
+                        <p id="forgotMessage" class="error-message" style="min-height: 20px;"></p>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================== -->
+        <!-- VISTA PARA RESTABLECER LA CONTRASEÑA                   -->
+        <!-- ====================================================== -->
+        <div id="resetPasswordView" style="display: none;">
+            <div class="login-page-wrapper">
+                <div class="login-container">
+                    <h2>Establecer Nueva Contraseña</h2>
+                    <form id="resetPasswordForm">
+                        <input type="hidden" id="resetToken">
+                        <div class="form-group"><label for="newPassword">Nueva Contraseña</label><input type="password" id="newPassword" required></div>
+                        <div class="form-group"><label for="confirmPassword">Confirmar Nueva Contraseña</label><input type="password" id="confirmPassword" required></div>
+                        <div class="form-actions" style="margin-top: 1.5rem;">
+                            <button type="submit" class="btn btn-primary">Guardar Nueva Contraseña</button>
+                        </div>
+                        <p id="resetMessage" class="error-message" style="min-height: 20px;"></p>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================== -->
+        <!-- VISTA DE REGISTRO DEL PORTAL (Añadida)                 -->
+        <!-- ====================================================== -->
+        <div id="portalRegisterView" style="display: none;">
+            <div class="login-page-wrapper">
+                <div class="login-container" style="max-width: 500px;">
+                    <h2>Registro de Nuevo Cliente</h2>
+                    <p>Complete sus datos para solicitar presupuestos.</p>
+                    <form id="portalRegisterForm">
+                        <div class="form-group"><label for="registerNombre">Nombre y Apellido</label><input type="text" id="registerNombre" required></div>
+                        <div class="form-group"><label for="registerEmpresa">Empresa (Opcional)</label><input type="text" id="registerEmpresa"></div>
+                        <div class="form-group"><label for="registerEmail">Email</label><input type="email" id="registerEmail" required></div>
+                        <div class="form-group"><label for="registerTelefono">Teléfono</label><input type="tel" id="registerTelefono"></div>
+                        <div class="form-group"><label for="registerPassword">Crear Contraseña</label><input type="password" id="registerPassword" required></div>
+                        <div class="form-actions" style="margin-top: 1.5rem; justify-content: space-between; align-items: center;">
+                            <button type="submit" class="btn btn-success">Registrarse</button>
+                            <a href="#" id="backToPortalLogin" class="back-link">Volver al Login</a>
+                        </div>
+                        <p id="registerErrorMessage" class="error-message" style="min-height: 20px;"></p>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================== -->
+        <!-- VISTA DEL DASHBOARD INTERNO (Añadida)                  -->
+        <!-- ====================================================== -->
+        <div id="dashboardView" style="display: none;">
+            <header>
+                <h1>CoreGestión</h1>
+                <nav id="main-nav"></nav>
+                <button id="logoutButton" class="btn btn-sm btn-danger">Cerrar Sesión</button>
+            </header>
+            <main><div id="content-area" class="container"></div></main>
+        </div>
+        
+        <!-- ====================================================== -->
+        <!-- VISTA DEL DASHBOARD DEL PORTAL (Añadida)               -->
+        <!-- ====================================================== -->
+        <div id="portalDashboardView" style="display: none;">
+             <header>
+                <h1>Portal de Clientes</h1>
+                <nav id="portal-nav"></nav>
+                <button id="portalLogoutButton" class="btn btn-sm btn-danger">Cerrar Sesión</button>
+            </header>
+            <main><div id="portal-content-area" class="container"></div></main>
+        </div>
+
     </div>
-    <script src="js/auth.js"></script>
+
+    <!-- Los scripts se mantienen igual, con type="module" -->
+    <script type="module" src="js/api.js"></script> 
+    <script type="module" src="js/auth.js"></script> 
+    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/portal.js"></script>
+
 </body>
 </html>

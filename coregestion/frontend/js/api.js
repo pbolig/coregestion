@@ -1,39 +1,58 @@
 // frontend/js/api.js
-const API_BASE_URL = 'http://localhost:3000/api';
 
+const API_BASE_URL = '/api';
+
+/**
+ * Función genérica y mejorada para realizar peticiones a la API.
+ * Ahora puede manejar respuestas JSON y también archivos (Blobs).
+ * @param {string} endpoint - El endpoint de la API.
+ * @param {object} options - Opciones de configuración para fetch.
+ * @returns {Promise<any>} - La respuesta de la API en el formato correcto (JSON o Blob).
+ */
 export async function fetchData(endpoint, options = {}) {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('portal_token');
     const headers = {
         'Content-Type': 'application/json',
-        ...options.headers
+        ...options.headers,
     };
-
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
-        method: options.method || 'GET',
-        headers: headers,
-        body: options.body // Solo incluye el body si es POST/PUT
-    });
+    const config = { ...options, headers };
 
-    if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('userRole');
-            window.location.href = '/index.html';
+    try {
+        const response = await fetch(`${API_BASE_URL}/${endpoint}`, config);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ 
+                message: `Error ${response.status}: ${response.statusText}` 
+            }));
+            const error = new Error(errorData.message || 'Ocurrió un error desconocido.');
+            error.status = response.status;
+            if (errorData.detalles) {
+                error.detalles = errorData.detalles;
+            }
+            throw error;
         }
-        // Intenta parsear errorData como JSON, pero maneja si no lo es
-        const errorData = await response.json().catch(() => ({ message: 'Error desconocido del servidor.' }));
-        throw new Error(errorData.message || 'Error en la solicitud.');
-    }
+        
+        const contentType = response.headers.get("content-type");
 
-    // Manejo de respuesta vacía (ej. 204 No Content)
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-        return response.json();
-    } else {
-        return {}; // Devuelve un objeto vacío si no es JSON, para evitar parsear un cuerpo vacío.
+        // --- LÓGICA MEJORADA ---
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            // Si es JSON, lo parseamos como JSON.
+            return await response.json();
+        } else if (contentType && contentType.indexOf("application/pdf") !== -1) {
+            // Si es un PDF, lo devolvemos como un "Blob" (un objeto de tipo archivo).
+            return await response.blob();
+        } else {
+            // Para otros casos (como un DELETE exitoso que no devuelve nada),
+            // devolvemos un objeto de éxito genérico.
+            return { message: 'Operación exitosa sin contenido de respuesta.' };
+        }
+
+    } catch (error) {
+        console.error(`Error en la petición a ${endpoint}:`, error);
+        throw error;
     }
 }
