@@ -1,58 +1,52 @@
 // frontend/js/modules/prospectos.js
 import { fetchData } from '../api.js';
 
-/**
- * Función principal que renderiza la vista de Gestión de Prospectos.
- * @param {HTMLElement} container - El elemento del DOM donde se renderizará.
- */
+const moduleHTML = `
+    <div id="notification-area-prospectos" class="notification-area"></div>
+    <h2>Gestión de Prospectos y Solicitudes</h2>
+
+    <div class="tabs-container">
+        <button class="tab-link active" data-target="prospectosTab">Prospectos Pendientes</button>
+        <button class="tab-link" data-target="solicitudesTab">Solicitudes Recibidas</button>
+    </div>
+
+    <div id="prospectosTab" class="tab-content active">
+        <h3>Nuevos Prospectos Pendientes de Aprobación</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>Nombre</th><th>Empresa</th><th>Email</th><th>Teléfono</th><th style="width: 200px;">Acciones</th></tr>
+                </thead>
+                <tbody id="prospectosTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div id="solicitudesTab" class="tab-content">
+         <h3>Solicitudes de Presupuesto Recibidas</h3>
+         <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>Fecha</th><th>Prospecto</th><th>Descripción de la Necesidad</th><th>Estado</th><th style="width: 150px;">Acciones</th></tr>
+                </thead>
+                <tbody id="solicitudesTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <style>
+        .tabs-container { border-bottom: 2px solid var(--color-border); margin-bottom: 1.5rem; }
+        .tab-link { background: none; border: none; padding: 1rem 1.5rem; cursor: pointer; font-size: 1.1rem; border-bottom: 3px solid transparent; }
+        .tab-link.active { border-bottom-color: var(--color-primary); font-weight: bold; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .notification-area { padding: 1rem; margin-bottom: 1rem; border-radius: var(--border-radius-md); display: none; text-align: center; font-weight: bold; }
+        .notification-area.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .notification-area.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+`;
+
 export async function render(container) {
-    container.innerHTML = `
-        <h2>Gestión de Prospectos y Solicitudes</h2>
-
-        <!-- Pestañas de Navegación -->
-        <div class="tabs-container">
-            <button class="tab-link active" data-target="prospectosTab">Prospectos Pendientes</button>
-            <button class="tab-link" data-target="solicitudesTab">Solicitudes Recibidas</button>
-        </div>
-
-        <!-- Contenido de la Pestaña Prospectos -->
-        <div id="prospectosTab" class="tab-content active">
-            <h3>Nuevos Prospectos Pendientes de Aprobación</h3>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nombre</th><th>Empresa</th><th>Email</th><th>Teléfono</th><th style="width: 200px;">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="prospectosTableBody"></tbody>
-                </table>
-            </div>
-        </div>
-        
-        <!-- Contenido de la Pestaña Solicitudes -->
-        <div id="solicitudesTab" class="tab-content">
-             <h3>Solicitudes de Presupuesto Recibidas</h3>
-             <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Fecha</th><th>Prospecto</th><th>Descripción de la Necesidad</th><th>Estado</th><th style="width: 150px;">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="solicitudesTableBody"></tbody>
-                </table>
-            </div>
-        </div>
-        <style>
-            .tabs-container { border-bottom: 2px solid var(--color-border); margin-bottom: 1.5rem; }
-            .tab-link { background: none; border: none; padding: 1rem 1.5rem; cursor: pointer; font-size: 1.1rem; border-bottom: 3px solid transparent; }
-            .tab-link.active { border-bottom-color: var(--color-primary); font-weight: bold; }
-            .tab-content { display: none; }
-            .tab-content.active { display: block; }
-        </style>
-    `;
-
+    container.innerHTML = moduleHTML;
     setupEventListeners();
     await loadProspectos();
     await loadSolicitudes();
@@ -69,26 +63,23 @@ function setupEventListeners() {
         });
     });
 
-    document.getElementById('prospectosTableBody').addEventListener('click', (e) => {
-        const target = e.target.closest('button');
-        if (!target) return;
-
-        const prospectoId = target.dataset.id;
-        if (target.classList.contains('approve-btn')) {
-            approveProspecto(prospectoId);
-        } else if (target.classList.contains('reject-btn')) {
-            rejectProspecto(prospectoId);
-        }
-    });
-    
-     document.getElementById('solicitudesTableBody').addEventListener('click', (e) => {
+    // --- LISTENER CORREGIDO Y RESTAURADO ---
+    document.getElementById('solicitudesTableBody').addEventListener('click', (e) => {
         const target = e.target.closest('button');
         if (!target || !target.classList.contains('create-budget-btn')) return;
         
         const solicitudData = JSON.parse(target.dataset.solicitud);
-        // Aquí redirigimos al módulo de presupuestos, pasando los datos.
-        // Esto es una simplificación. Una app más compleja usaría un router o eventos.
-        alert(`Redirigiendo para crear presupuesto para la solicitud #${solicitudData.id}. (Funcionalidad pendiente)`);
+        
+        // Ahora llamamos directamente a una función global que se encargará de la navegación.
+        window.navigateToModule('presupuestos', { fromRequest: solicitudData });
+    });
+    
+    document.getElementById('solicitudesTableBody').addEventListener('click', (e) => {
+        const target = e.target.closest('button');
+        if (!target || !target.classList.contains('create-budget-btn')) return;
+        
+        const solicitudData = JSON.parse(target.dataset.solicitud);
+        prepararYNavegarAPresupuesto(solicitudData);
     });
 }
 
@@ -131,7 +122,6 @@ async function loadSolicitudes() {
         } else {
             solicitudes.forEach(s => {
                 const row = tableBody.insertRow();
-                // Guardamos el objeto completo para pasarlo a la función de crear presupuesto.
                 const solicitudDataString = JSON.stringify(s);
                 row.innerHTML = `
                     <td>${new Date(s.fecha_solicitud).toLocaleDateString('es-AR')}</td>
@@ -149,15 +139,14 @@ async function loadSolicitudes() {
     }
 }
 
-
 async function approveProspecto(id) {
     if (confirm(`¿Estás seguro de que quieres aprobar este prospecto y convertirlo en cliente?`)) {
         try {
             const result = await fetchData(`prospectos/${id}/aprobar`, { method: 'POST' });
-            alert(result.message);
-            await loadProspectos(); // Recargar la lista
+            showNotification(result.message, 'success');
+            await loadProspectos();
         } catch (error) {
-            alert(`Error al aprobar prospecto: ${error.message}`);
+            showNotification(`Error al aprobar prospecto: ${error.message}`, 'error');
         }
     }
 }
@@ -166,10 +155,44 @@ async function rejectProspecto(id) {
      if (confirm(`¿Estás seguro de que quieres rechazar a este prospecto? Esta acción no se puede deshacer.`)) {
         try {
             const result = await fetchData(`prospectos/${id}/rechazar`, { method: 'POST' });
-            alert(result.message);
-            await loadProspectos(); // Recargar la lista
+            showNotification(result.message, 'success');
+            await loadProspectos();
         } catch (error) {
-            alert(`Error al rechazar prospecto: ${error.message}`);
+            showNotification(`Error al rechazar prospecto: ${error.message}`, 'error');
         }
     }
+}
+
+async function prepararYNavegarAPresupuesto(solicitud) {
+    try {
+        const clientes = await fetchData('clientes');
+        const clienteExistente = clientes.find(c => c.email === solicitud.prospecto_email);
+        if (!clienteExistente) {
+            showNotification('Este prospecto debe ser aprobado y convertido en cliente antes de poder crearle un presupuesto.', 'error');
+            return;
+        }
+        sessionStorage.setItem('nuevoPresupuestoDesdeSolicitud', JSON.stringify({
+            clienteId: clienteExistente.id,
+            descripcion: solicitud.descripcion_necesidad
+        }));
+        const linkPresupuestos = document.querySelector('#main-nav a[data-module-id="presupuestos"]');
+        if (linkPresupuestos) {
+            linkPresupuestos.click();
+        } else {
+            showNotification('No se pudo navegar al módulo de presupuestos.', 'error');
+        }
+    } catch (error) {
+        showNotification(`Error al preparar el presupuesto: ${error.message}`, 'error');
+    }
+}
+
+function showNotification(message, type = 'success') {
+    const notificationArea = document.getElementById('notification-area-prospectos');
+    if (!notificationArea) return;
+    notificationArea.textContent = message;
+    notificationArea.className = `notification-area ${type}`;
+    notificationArea.style.display = 'block';
+    setTimeout(() => {
+        notificationArea.style.display = 'none';
+    }, 4000);
 }

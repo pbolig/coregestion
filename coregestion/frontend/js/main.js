@@ -81,19 +81,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Función de enrutamiento completa y definitiva.
+     * "Router" que carga módulos y les pasa parámetros.
      * @param {string} moduleId - El ID del módulo a cargar.
+     * @param {object} [params={}] - Parámetros opcionales para pasar al módulo.
      */
-    async function navigateTo(moduleId) {
+    async function navigateTo(moduleId, params = {}) {
         contentArea.innerHTML = `<h2>Cargando módulo de ${moduleId}...</h2>`;
         try {
-            // Se asume que el nombre del archivo es igual al ID del módulo.
             const path = `./modules/${moduleId}.js`;
             const { render } = await import(path);
-            render(contentArea);
+            // Pasamos los parámetros a la función render del módulo.
+            render(contentArea, params);
         } catch (error) {
             console.error(`Error al cargar el módulo ${moduleId}:`, error);
-            contentArea.innerHTML = `<h2>Error al cargar el módulo.</h2><p class="error-message">No se pudo encontrar el archivo <strong>${moduleId}.js</strong>. Verifique que el archivo exista en la carpeta /js/modules/ y que el nombre sea correcto.</p>`;
+            contentArea.innerHTML = `<h2>Error al cargar el módulo.</h2><p class="error-message">No se pudo encontrar el archivo <strong>${moduleId}.js</strong>.</p>`;
         }
     }
+
+     // Hacemos que la función de navegación sea accesible globalmente.
+    window.navigateToModule = navigateTo;
 });

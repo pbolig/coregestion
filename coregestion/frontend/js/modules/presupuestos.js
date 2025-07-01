@@ -4,11 +4,11 @@ import { fetchData } from '../api.js';
 let insumosCache = [];
 let clientesCache = [];
 let currentPresupuestoData = {};
+let insumoLineCounter = 0;
 
 const moduleHTML = `
     <div id="notification-area-presupuestos" class="notification-area"></div>
     <h2>Gestión de Presupuestos</h2>
-    
     <div id="presupuestoFormContainer" class="form-container" style="display:none;">
         <h3 id="presupuestoFormTitle">Nuevo Presupuesto</h3>
         <form id="presupuestoForm" style="width:100%; display:contents;">
@@ -23,7 +23,6 @@ const moduleHTML = `
             <div class="form-actions" style="width: 100%; border-top: 1px solid var(--color-border); padding-top: 1.5rem; margin-top: 1rem;"><button type="submit" class="btn btn-primary">Guardar Presupuesto</button><button type="button" id="cancelBtn" class="btn btn-secondary">Cancelar</button></div>
         </form>
     </div>
-
     <div class="table-container">
         <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h3>Listado de Presupuestos</h3>
@@ -34,7 +33,6 @@ const moduleHTML = `
             <tbody id="presupuestosTableBody"></tbody>
         </table>
     </div>
-
     <div id="stockConflictModal" class="modal-overlay" style="display:none;"><div class="modal-content"><h3 id="conflictModalTitle">Conflicto de Stock</h3><p id="conflictModalMessage"></p><div class="form-actions" style="justify-content: center; margin-top: 1.5rem;"><button id="useAvailableBtn" class="btn btn-success">Usar Disponibles y Aprobar</button><button id="createPendingBtn" class="btn btn-warning">Crear como Pendiente</button><button id="cancelConflictBtn" class="btn btn-secondary">Cancelar</button></div></div></div>
     <div id="viewDetailsModal" class="modal-overlay" style="display:none;"><div class="modal-content"><button id="closeDetailsModalBtn" class="modal-close-btn">&times;</button><h3>Detalle de Presupuesto</h3><div id="detailsModalBody"></div></div></div>
     <div id="facturacionModal" class="modal-overlay" style="display:none;"><div class="modal-content"><button id="closeFacturacionModalBtn" class="modal-close-btn">&times;</button><h3>Generar Factura desde Presupuesto</h3><form id="facturacionForm"><div id="facturacionResumen" style="text-align: left; background-color: #f8f9fa; padding: 1rem; border-radius: var(--border-radius-md); margin-bottom: 1.5rem;"></div><h4>Gastos Adicionales (Opcional)</h4><div id="gastosAdicionalesContainer" class="item-list-container"></div><div class="form-actions" style="justify-content: flex-start; margin-bottom: 1rem;"><button type="button" id="addGastoBtn" class="btn btn-secondary btn-sm">Añadir Gasto</button></div><div class="form-group" style="text-align: right; border-top: 2px solid var(--color-primary); padding-top: 1rem;"><label for="facturaTotalFinal" style="font-size: 1.2rem; font-weight: bold;">Total Final Factura</label><input type="text" id="facturaTotalFinal" readonly style="font-size: 1.8rem; font-weight: bold; text-align: right; background: none; border: none; color: var(--color-primary-dark);"></div><div class="form-actions" style="margin-top: 1.5rem;"><button type="submit" class="btn btn-primary">Emitir Factura y Enviar por Email</button></div></form></div></div>
@@ -46,19 +44,24 @@ const moduleHTML = `
         .modal-content { background-color: white; padding: 2rem; border-radius: var(--border-radius-md); width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto; position: relative; }
         .modal-close-btn { position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem; background: none; border: none; cursor: pointer; }
         .stock-ready-indicator { cursor: help; color: var(--color-success); font-weight: bold; margin-left: 8px; }
+        .recurrente-indicator { font-size: 1.2rem; color: var(--color-primary); margin-left: 0.5rem; font-weight: bold; cursor: help; }
     </style>
 `;
 
-export async function render(container) {
+export async function render(container, params = {}) {
     container.innerHTML = moduleHTML;
-    await initializeModule();
+    await initializeModule(params);
 }
 
-async function initializeModule() {
+async function initializeModule(params) {
     setupEventListeners();
     try {
         [insumosCache, clientesCache] = await Promise.all([fetchData('insumos'), fetchData('clientes')]);
         await loadPresupuestos();
+        
+        if (params.fromRequest) {
+            await showForm(null, params.fromRequest);
+        }
     } catch (error) {
         showNotification(`Error al cargar datos iniciales: ${error.message}`, 'error');
     }
@@ -75,6 +78,67 @@ function setupEventListeners() {
     document.getElementById('closeFacturacionModalBtn')?.addEventListener('click', () => document.getElementById('facturacionModal').style.display = 'none');
     document.getElementById('addGastoBtn')?.addEventListener('click', addGastoLine);
     document.getElementById('facturacionForm')?.addEventListener('submit', handleFacturacionSubmit);
+}
+
+async function showForm(editId = null, prefillData = null) {
+    hideForm();
+    const formContainer = document.getElementById('presupuestoFormContainer');
+    document.getElementById('presupuestoFecha').valueAsDate = new Date();
+    
+    formContainer.style.display = 'block';
+    
+    // Pasamos los datos de pre-llenado directamente a la función que puebla los selects.
+    await populateSelects(prefillData);
+
+    if (editId) {
+        document.getElementById('presupuestoFormTitle').textContent = 'Editar Presupuesto';
+        try {
+            const data = await fetchData(`presupuestos/${editId}`);
+            document.getElementById('presupuestoId').value = data.id;
+            document.getElementById('presupuestoCliente').value = data.cliente_id;
+            document.getElementById('presupuestoFecha').value = data.fecha.split('T')[0];
+            document.getElementById('presupuestoEstado').value = data.estado;
+            const insumosContainer = document.getElementById('insumosListContainer');
+            insumosContainer.innerHTML = '';
+            if (data.insumos && data.insumos.length > 0) {
+                data.insumos.forEach(insumo => addInsumoLine(insumo));
+            } else { addInsumoLine(); }
+        } catch(error) {
+             showNotification(`Error al cargar el presupuesto: ${error.message}`, 'error');
+             return;
+        }
+    } else {
+        document.getElementById('presupuestoFormTitle').textContent = 'Crear Nuevo Presupuesto';
+        addInsumoLine();
+        if (prefillData) {
+            showNotification(`Creando presupuesto para cliente. Necesidad: "${prefillData.descripcion}"`, 'info');
+        }
+    }
+    calculateTotal();
+}
+
+async function populateSelects(prefillData = null) {
+    const clienteSelect = document.getElementById('presupuestoCliente');
+    clienteSelect.innerHTML = '<option value="">-- Cliente --</option>';
+    if (clientesCache.length === 0) {
+        try {
+            clientesCache = await fetchData('clientes');
+        } catch (error) {
+            showNotification('No se pudieron cargar los clientes.', 'error');
+        }
+    }
+    clientesCache.forEach(c => {
+        const option = new Option(c.nombre, c.id);
+        if (prefillData && c.email === prefillData.prospecto_email) {
+            option.selected = true;
+        }
+        clienteSelect.add(option);
+    });
+
+    const estadoSelect = document.getElementById('presupuestoEstado');
+    const estados = ['En Espera de Cotización', 'Aprobado por Cliente', 'Rechazado', 'En Ejecución', 'Facturado', 'Fac. Fiscal', 'Pendiente de Insumos', 'Cancelado'];
+    estadoSelect.innerHTML = '';
+    estados.forEach(e => estadoSelect.add(new Option(e, e)));
 }
 
 async function loadPresupuestos() {
@@ -104,19 +168,14 @@ function generateActionButtons(presupuesto) {
         buttons += `<button class="btn btn-sm btn-warning edit-btn">Editar</button>`;
     }
     switch (presupuesto.estado) {
-        case 'En Espera de Cotización':
-        case 'Pendiente de Insumos':
-            buttons += `<button class="btn btn-sm btn-success action-btn" data-action="Aprobado por Cliente">Aprobar</button>`;
-            break;
+        case 'En Espera de Cotización': case 'Pendiente de Insumos':
+            buttons += `<button class="btn btn-sm btn-success action-btn" data-action="Aprobado por Cliente">Aprobar</button>`; break;
         case 'Aprobado por Cliente':
-            buttons += `<button class="btn btn-sm btn-primary action-btn" data-action="En Ejecución">Ejecutar</button>`;
-            break;
+            buttons += `<button class="btn btn-sm btn-primary action-btn" data-action="En Ejecución">Ejecutar</button>`; break;
         case 'En Ejecución':
-            buttons += `<button class="btn btn-sm btn-info action-btn" data-action="Facturar">Facturar (Interno)</button>`;
-            break;
+            buttons += `<button class="btn btn-sm btn-info action-btn" data-action="Facturar">Facturar (Interno)</button>`; break;
         case 'Facturado':
-            buttons += `<button class="btn btn-sm btn-success action-btn" data-action="Emitir Fiscal">Emitir Fact. Fiscal</button>`;
-            break;
+            buttons += `<button class="btn btn-sm btn-success action-btn" data-action="Emitir Fiscal">Emitir Fact. Fiscal</button>`; break;
     }
     if (!['Facturado', 'Fac. Fiscal', 'Rechazado', 'Cancelado'].includes(presupuesto.estado)) {
         buttons += `<button class="btn btn-sm btn-danger action-btn" data-action="Rechazado">Rechazar</button>`;
@@ -191,93 +250,36 @@ async function showPresupuestoDetails(presupuestoId) {
     }
 }
 
-async function showForm(editId = null) {
-    hideForm();
-    const formContainer = document.getElementById('presupuestoFormContainer');
-    document.getElementById('presupuestoFecha').valueAsDate = new Date();
-    populateSelects();
-    if (editId) {
-        document.getElementById('presupuestoFormTitle').textContent = 'Editar Presupuesto';
-        try {
-            const data = await fetchData(`presupuestos/${editId}`);
-            document.getElementById('presupuestoId').value = data.id;
-            document.getElementById('presupuestoCliente').value = data.cliente_id;
-            document.getElementById('presupuestoFecha').value = data.fecha.split('T')[0];
-            document.getElementById('presupuestoEstado').value = data.estado;
-            const insumosContainer = document.getElementById('insumosListContainer');
-            insumosContainer.innerHTML = '';
-            if (data.insumos && data.insumos.length > 0) {
-                data.insumos.forEach(insumo => addInsumoLine(insumo));
-            } else { addInsumoLine(); }
-        } catch(error) {
-             showNotification(`Error al cargar el presupuesto: ${error.message}`, 'error');
-             return;
-        }
-    } else {
-        document.getElementById('presupuestoFormTitle').textContent = 'Crear Presupuesto';
-        addInsumoLine();
-    }
-    formContainer.style.display = 'block';
-    calculateTotal();
-}
-
 function hideForm() {
     document.getElementById('presupuestoFormContainer').style.display = 'none';
     document.getElementById('presupuestoForm').reset();
     document.getElementById('insumosListContainer').innerHTML = '';
 }
 
-function populateSelects() {
-    const clienteSelect = document.getElementById('presupuestoCliente');
-    clienteSelect.innerHTML = '<option value="">-- Cliente --</option>';
-    clientesCache.forEach(c => clienteSelect.add(new Option(c.nombre, c.id)));
-    const estadoSelect = document.getElementById('presupuestoEstado');
-    const estados = ['En Espera de Cotización', 'Aprobado por Cliente', 'Rechazado', 'En Ejecución', 'Facturado', 'Pendiente de Insumos', 'Cancelado'];
-    estadoSelect.innerHTML = '';
-    estados.forEach(e => estadoSelect.add(new Option(e, e)));
-}
-
-/**
- * Añade una nueva línea de insumo al formulario de presupuesto.
- * MUESTRA EL ÍCONO RECURRENTE EN EL DESPLEGABLE Y AÑADE UN LISTENER.
- * @param {HTMLElement} container - El contenedor donde añadir la línea de insumo.
- * @param {Object} [insumoData=null] - Datos opcionales para precargar la línea.
- */
 function addInsumoLine(insumoData = null) {
+    insumoLineCounter++;
     const container = document.getElementById('insumosListContainer');
     const itemRow = document.createElement('div');
     itemRow.className = 'item-row';
-    
-    // Se añade un <span> para el indicador de recurrencia
+    // --- CORRECCIÓN: Se añaden IDs y Names únicos ---
     itemRow.innerHTML = `
-        <select class="insumo-select" required></select>
-        <span class="recurrente-indicator"></span> 
-        <input type="number" class="insumo-cantidad" placeholder="Cant." min="1" value="${insumoData ? insumoData.cantidad : 1}" required>
+        <select class="insumo-select" id="insumo-select-${insumoLineCounter}" name="insumo_id" required></select>
+        <span class="recurrente-indicator" title="Este es un servicio recurrente (abono)."></span>
+        <input type="number" class="insumo-cantidad" id="insumo-cantidad-${insumoLineCounter}" name="cantidad" placeholder="Cant." min="1" value="${insumoData ? insumoData.cantidad : 1}" required>
         <button type="button" class="btn btn-danger btn-sm remove-item-btn">X</button>
     `;
     container.appendChild(itemRow);
-
     const newSelect = itemRow.querySelector('.insumo-select');
-    
-    // Llenar el selector
     newSelect.innerHTML = '<option value="">-- Seleccione un insumo --</option>';
     insumosCache.forEach(insumo => {
-        // Si el insumo es recurrente, añadimos el ícono al texto de la opción
-        const optionText = insumo.es_recurrente 
-            ? `🔄 ${insumo.nombre} (Abono)` 
-            : `${insumo.nombre} (Stock: ${insumo.stock})`;
+        const optionText = insumo.es_recurrente ? `🔄 ${insumo.nombre} (Abono)` : `${insumo.nombre} (Stock: ${insumo.stock})`;
         newSelect.add(new Option(optionText, insumo.id));
     });
-    
-    if (insumoData) {
-        newSelect.value = insumoData.insumo_id;
-        updateRecurrenteIndicator(newSelect); // Actualizar indicador al cargar
-    }
-
-    // --- EVENT LISTENERS PARA LA NUEVA LÍNEA ---
+    if (insumoData) newSelect.value = insumoData.insumo_id;
+    updateRecurrenteIndicator(newSelect);
     newSelect.addEventListener('change', () => {
         calculateTotal();
-        updateRecurrenteIndicator(newSelect); // Actualizar indicador al cambiar la selección
+        updateRecurrenteIndicator(newSelect);
     });
     itemRow.querySelector('.insumo-cantidad').addEventListener('input', calculateTotal);
     itemRow.querySelector('.remove-item-btn').addEventListener('click', (e) => {
@@ -290,22 +292,11 @@ function addInsumoLine(insumoData = null) {
     });
 }
 
-/**
- * FUNCIÓN: Muestra u oculta el ícono de recurrencia basado en la selección.
- * @param {HTMLSelectElement} selectElement - El elemento select que ha cambiado.
- */
 function updateRecurrenteIndicator(selectElement) {
     const selectedId = selectElement.value;
     const insumo = insumosCache.find(i => i.id == selectedId);
-    const indicatorSpan = selectElement.nextElementSibling; // El <span> que está justo después del <select>
-
-    if (insumo && insumo.es_recurrente === 1) {
-        indicatorSpan.textContent = '🔄';
-        indicatorSpan.title = 'Este es un servicio recurrente (abono).';
-    } else {
-        indicatorSpan.textContent = '';
-        indicatorSpan.title = '';
-    }
+    const indicatorSpan = selectElement.nextElementSibling;
+    if (indicatorSpan) indicatorSpan.textContent = (insumo && insumo.es_recurrente === 1) ? '🔄' : '';
 }
 
 function calculateTotal() {
