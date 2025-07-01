@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 require('dotenv').config();
 const db = require('./db');
+const scheduler = require('./scheduler');
 const app = express();
 
 app.use(helmet({
@@ -40,6 +41,8 @@ const prospectoRoutes = require('./routes/prospectos');
 const solicitudRoutes = require('./routes/solicitudes');
 const conceptosCCRoutes = require('./routes/conceptos_cc');
 const facturacionRoutes = require('./routes/facturacion');
+const abonosRoutes = require('./routes/abonos');
+const reportesRoutes = require('./routes/reportes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
@@ -56,6 +59,8 @@ app.use('/api/prospectos', prospectoRoutes);
 app.use('/api/solicitudes', solicitudRoutes);
 app.use('/api/conceptos-cc', conceptosCCRoutes);
 app.use('/api/facturacion', facturacionRoutes);
+app.use('/api/abonos', abonosRoutes);
+app.use('/api/reportes', reportesRoutes);
 
 // RUTA CATCH-ALL
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
@@ -66,9 +71,14 @@ app.use((err, req, res, next) => {
     res.status(500).send({ message: 'Algo salió mal en el servidor!', error: err.message });
 });
 
-// --- INICIO DEL SERVIDOR ---
+// INICIO DEL SERVIDOR
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
+    console.log(`====================================================`);
     console.log(`Servidor backend corriendo en el puerto ${PORT}`);
     console.log(`Accede a la aplicación en: http://localhost:${PORT}`);
+    console.log(`====================================================`);
+    
+    // --- INICIAMOS EL PROGRAMADOR DE TAREAS ---
+    scheduler.iniciarScheduler(); // <-- 2. LO PONEMOS EN MARCHA
 });

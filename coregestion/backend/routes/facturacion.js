@@ -11,21 +11,17 @@ dbPromise.then(database => { db = database; }).catch(console.error);
 
 /**
  * @route   POST /api/facturacion
- * @desc    Crea una factura y maneja de forma robusta el posible fallo del envío de email.
+ * @desc    Crea una factura y, si corresponde, activa un abono recurrente.
  * @access  Private (admin, ventas)
  */
 router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (req, res) => {
     const { presupuesto_id, gastosAdicionales = [] } = req.body;
     if (!presupuesto_id) return res.status(400).json({ message: 'Se requiere el ID del presupuesto.' });
     
-    let facturaId; // La declaramos aquí para que sea accesible fuera del try/catch de la DB
+    let facturaId;
     let cliente;
-    let facturaData;
-    let pdfBuffer;
 
     try {
-        // --- ETAPA 1: TRANSACCIÓN DE BASE DE DATOS ---
-        // Nos aseguramos de que todos los registros contables sean exitosos.
         await db.run('BEGIN TRANSACTION');
 
         const presupuesto = await db.get('SELECT * FROM presupuestos WHERE id = ?', [presupuesto_id]);
@@ -61,44 +57,54 @@ router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (
         const ultimoMovimiento = await db.get('SELECT saldo_actual FROM cuentas_corrientes WHERE cliente_id = ? ORDER BY id DESC LIMIT 1', [presupuesto.cliente_id]);
         const saldo_anterior = ultimoMovimiento ? ultimoMovimiento.saldo_actual : 0;
         const saldo_actual = saldo_anterior + total_factura;
-        
-        await db.run(`INSERT INTO cuentas_corrientes (cliente_id, fecha, concepto_id, monto, comprobante_origen_id, saldo_anterior, saldo_actual) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        await db.run(
+            `INSERT INTO cuentas_corrientes (cliente_id, fecha, concepto_id, monto, comprobante_origen_id, saldo_anterior, saldo_actual) VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [presupuesto.cliente_id, new Date().toISOString(), conceptoFactura.id, total_factura, facturaId, saldo_anterior, saldo_actual]
         );
 
+        // --- LÓGICA DE ACTIVACIÓN DE ABONOS ---
+        const insumosDelPresupuesto = await db.all('SELECT insumo_id FROM presupuesto_insumos WHERE presupuesto_id = ?', [presupuesto_id]);
+        for (const item of insumosDelPresupuesto) {
+            const insumo = await db.get('SELECT es_recurrente, precio_unitario FROM insumos WHERE id = ?', [item.insumo_id]);
+            if (insumo && insumo.es_recurrente === 1) {
+                const fechaInicio = new Date();
+                const proximaFacturacion = new Date(new Date(fechaInicio).setMonth(fechaInicio.getMonth() + 1));
+                
+                // CORRECCIÓN: Se añade el campo 'frecuencia' al INSERT.
+                await db.run(
+                    `INSERT INTO abonos (cliente_id, insumo_id, presupuesto_origen_id, monto_recurrente, proxima_fecha_facturacion, estado, frecuencia) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [presupuesto.cliente_id, item.insumo_id, presupuesto_id, insumo.precio_unitario, proximaFacturacion.toISOString(), 'Activo', 'mensual']
+                );
+            }
+        }
+
         await db.run("UPDATE presupuestos SET estado = 'Facturado' WHERE id = ?", [presupuesto_id]);
-        
-        // Preparamos los datos para el PDF antes de confirmar
-        const insumosPresupuesto = await db.all('SELECT pi.cantidad, i.nombre, i.precio_unitario FROM presupuesto_insumos pi JOIN insumos i ON pi.insumo_id = i.id WHERE pi.presupuesto_id = ?', [presupuesto_id]);
-        facturaData = { id: facturaId, ...req.body, fecha_emision: new Date(), saldo_pendiente: total_factura, punto_venta: puntoVentaInterno, numero_comprobante: nuevoNumeroInterno };
-        pdfBuffer = await crearFacturaPDF({ factura: facturaData, cliente: cliente, presupuesto: { ...presupuesto, insumos: insumosPresupuesto }, gastosAdicionales: gastosAdicionales });
         
         await db.run('COMMIT');
 
     } catch (err) {
         await db.run('ROLLBACK');
-        console.error("[FACTURACION-ERROR] Falló la transacción de la base de datos:", err);
+        console.error("[FACTURACION-ERROR] Falló la transacción:", err);
         return res.status(500).json({ message: 'Error al generar la factura en la base de datos.', error: err.message });
     }
-
-    // --- ETAPA 2: ENVÍO DE NOTIFICACIÓN (fuera de la transacción) ---
+    
+    // El envío de email se hace fuera de la transacción.
     try {
+        const insumosPresupuesto = await db.all('SELECT pi.cantidad, i.nombre, i.precio_unitario FROM presupuesto_insumos pi JOIN insumos i ON pi.insumo_id = i.id WHERE pi.presupuesto_id = ?', [presupuesto_id]);
+        const facturaData = await db.get('SELECT * FROM facturas_venta WHERE id = ?', [facturaId]);
+        const pdfBuffer = await crearFacturaPDF({ factura: facturaData, cliente: cliente, presupuesto: { insumos: insumosPresupuesto }, gastosAdicionales: gastosAdicionales });
         await sendEmail({
             to: cliente.email,
             subject: `Factura N° ${facturaData.punto_venta}-${facturaData.numero_comprobante} - CoreGestión`,
             html: `<p>Hola ${cliente.nombre},</p><p>Adjuntamos la factura/remito correspondiente a nuestros servicios.</p>`,
             attachments: [{ filename: `Factura-${facturaId}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
         });
-        
-        // Si todo sale bien, enviamos el mensaje de éxito completo.
-        res.status(201).json({ id: facturaId, message: `Factura #${facturaId} creada y enviada al cliente exitosamente.` });
-
+        res.status(201).json({ id: facturaId, message: `Factura #${facturaId} creada y enviada. Abonos (si aplica) activados.` });
     } catch (emailError) {
-        console.error("[EMAIL-ERROR] La factura se creó pero falló el envío por email:", emailError);
-        // Si solo falla el email, enviamos un mensaje de éxito parcial.
+        console.error("[EMAIL-ERROR] La factura se creó pero falló el envío:", emailError);
         res.status(201).json({ 
             id: facturaId, 
-            message: `¡Factura #${facturaId} creada con éxito! Falló el envío por email. Puede reenviarla manualmente desde Cuentas Corrientes.` 
+            message: `¡Factura #${facturaId} creada con éxito! Falló el envío por email. Puede reenviarla manualmente.` 
         });
     }
 });

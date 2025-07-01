@@ -15,11 +15,6 @@ const validateInsumoData = (req, res, next) => {
     next();
 };
 
-/**
- * @route   GET /api/insumos
- * @desc    Obtener todos los insumos (datos maestros y stock)
- * @access  Private (admin, almacen, ventas)
- */
 router.get('/', authenticateToken, authorizeRoles(['admin', 'almacen', 'ventas']), async (req, res) => {
     try {
         const insumos = await db.all('SELECT * FROM insumos ORDER BY nombre');
@@ -57,32 +52,24 @@ router.get('/:id/pendientes', authenticateToken, authorizeRoles(['admin', 'almac
 });
 
 
-/**
- * @route   POST /api/insumos
- * @desc    Crear un nuevo insumo maestro (stock inicial 0)
- * @access  Private (admin, almacen)
- */
 router.post('/', authenticateToken, authorizeRoles(['admin', 'almacen']), validateInsumoData, async (req, res) => {
-    const { nombre, unidad, precio_unitario } = req.body;
-    const sql = `INSERT INTO insumos (nombre, stock, unidad, estado, precio_unitario, cantidad_pendiente) VALUES (?, 0, ?, 'Disponible', ?, 0)`;
+    // AÑADIDO: Se recibe el campo es_recurrente
+    const { nombre, unidad, precio_unitario, es_recurrente } = req.body;
+    const sql = `INSERT INTO insumos (nombre, stock, unidad, es_recurrente, precio_unitario) VALUES (?, 0, ?, ?, ?)`;
     try {
-        const result = await db.run(sql, [nombre, unidad, precio_unitario]);
+        const result = await db.run(sql, [nombre, unidad, es_recurrente ? 1 : 0, precio_unitario]);
         res.status(201).json({ id: result.lastID, message: 'Insumo maestro creado exitosamente.' });
     } catch (err) {
         res.status(500).json({ message: 'Error al crear el insumo.', error: err.message });
     }
 });
 
-/**
- * @route   PUT /api/insumos/:id
- * @desc    Actualizar datos maestros de un insumo (nombre, unidad, precio)
- * @access  Private (admin, almacen)
- */
 router.put('/:id', authenticateToken, authorizeRoles(['admin', 'almacen']), validateInsumoData, async (req, res) => {
-    const { nombre, unidad, precio_unitario } = req.body;
-    const sql = `UPDATE insumos SET nombre = ?, unidad = ?, precio_unitario = ? WHERE id = ?`;
+    // AÑADIDO: Se recibe el campo es_recurrente
+    const { nombre, unidad, precio_unitario, es_recurrente } = req.body;
+    const sql = `UPDATE insumos SET nombre = ?, unidad = ?, precio_unitario = ?, es_recurrente = ? WHERE id = ?`;
     try {
-        const result = await db.run(sql, [nombre, unidad, precio_unitario, req.params.id]);
+        const result = await db.run(sql, [nombre, unidad, precio_unitario, es_recurrente ? 1 : 0, req.params.id]);
         if (result.changes > 0) {
             res.status(200).json({ message: 'Datos maestros del insumo actualizados.' });
         } else {

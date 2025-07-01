@@ -29,7 +29,18 @@ async function createTables(db) {
         CREATE TABLE IF NOT EXISTS user_roles (user_id INTEGER NOT NULL, role_id INTEGER NOT NULL, PRIMARY KEY (user_id, role_id), FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE);
         CREATE TABLE IF NOT EXISTS clientes (id INTEGER PRIMARY KEY, nombre TEXT NOT NULL, cuit TEXT UNIQUE, direccion TEXT, telefono TEXT, email TEXT);
         CREATE TABLE IF NOT EXISTS proveedores (id INTEGER PRIMARY KEY, nombre TEXT NOT NULL, cuit TEXT UNIQUE, telefono TEXT, email TEXT, direccion TEXT);
-        CREATE TABLE IF NOT EXISTS insumos (id INTEGER PRIMARY KEY, nombre TEXT NOT NULL, stock INTEGER NOT NULL, unidad TEXT, estado TEXT DEFAULT 'Disponible', precio_unitario REAL DEFAULT 0.0, cantidad_pendiente INTEGER DEFAULT 0);
+        
+        CREATE TABLE IF NOT EXISTS insumos (
+            id INTEGER PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            stock INTEGER NOT NULL,
+            unidad TEXT,
+            es_recurrente INTEGER DEFAULT 0, -- 0 para no, 1 para sí
+            estado TEXT DEFAULT 'Disponible',
+            precio_unitario REAL DEFAULT 0.0,
+            cantidad_pendiente INTEGER DEFAULT 0
+        );
+
         CREATE TABLE IF NOT EXISTS presupuestos (id INTEGER PRIMARY KEY, cliente_id INTEGER, fecha TEXT, total REAL, estado TEXT, FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE SET NULL);
         CREATE TABLE IF NOT EXISTS presupuesto_insumos (presupuesto_id INTEGER NOT NULL, insumo_id INTEGER NOT NULL, cantidad INTEGER, PRIMARY KEY (presupuesto_id, insumo_id), FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id) ON DELETE CASCADE, FOREIGN KEY (insumo_id) REFERENCES insumos(id) ON DELETE RESTRICT);
         CREATE TABLE IF NOT EXISTS presupuesto_pendientes (id INTEGER PRIMARY KEY, presupuesto_id INTEGER NOT NULL, insumo_id INTEGER NOT NULL, cantidad_necesaria INTEGER NOT NULL, estado TEXT DEFAULT 'Pendiente', FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id) ON DELETE CASCADE, FOREIGN KEY (insumo_id) REFERENCES insumos(id) ON DELETE CASCADE);
@@ -52,7 +63,7 @@ async function createTables(db) {
             punto_venta INTEGER,
             numero_comprobante INTEGER,
 
-            -- NUEVO: Numeración Fiscal
+            -- Numeración Fiscal
             punto_venta_fiscal INTEGER,
             numero_comprobante_fiscal INTEGER,
             fecha_emision_fiscal TEXT,
@@ -64,6 +75,22 @@ async function createTables(db) {
             FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id) ON DELETE SET NULL,
             FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE
         );
+
+        --TABLA para gestionar los abonos/suscripciones
+        CREATE TABLE IF NOT EXISTS abonos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_id INTEGER NOT NULL,
+            insumo_id INTEGER NOT NULL, -- El servicio recurrente que se contrató
+            presupuesto_origen_id INTEGER, -- El presupuesto que generó este abono
+            monto_recurrente REAL NOT NULL,
+            frecuencia TEXT NOT NULL DEFAULT 'mensual', -- mensual, trimestral, anual
+            proxima_fecha_facturacion TEXT NOT NULL,
+            estado TEXT NOT NULL DEFAULT 'Activo', -- Activo, Cancelado
+            FOREIGN KEY (cliente_id) REFERENCES clientes(id) ON DELETE CASCADE,
+            FOREIGN KEY (insumo_id) REFERENCES insumos(id) ON DELETE RESTRICT,
+            FOREIGN KEY (presupuesto_origen_id) REFERENCES presupuestos(id) ON DELETE SET NULL
+        );
+
     `);
 }
 
@@ -107,11 +134,16 @@ async function seedData(db) {
     // Datos de prueba generales
     const clientesToInsert = [ { id: 1, nombre: 'Constructora del Litoral S.R.L.', cuit: '30-11223344-5', direccion: 'Av. Pellegrini 1234', telefono: '341-555-0101', email: 'pedro.bolig@valkimia.com' }, { id: 2, nombre: 'Juan Carlos Pérez (Consumidor Final)', cuit: '20-25678901-2', direccion: 'San Martín 567, Rosario', telefono: '341-555-0102', email: 'pedro.bolig@valkimia.com' }, { id: 3, nombre: 'Estudio de Arquitectura Moderno', cuit: '30-88776655-4', direccion: 'Córdoba 987, 5A', telefono: '341-555-0103', email: 'pedro.bolig@valkimia.com' } ];
     const proveedoresToInsert = [ { id: 1, nombre: 'Hierros Litoral', cuit: '33-55667788-9', telefono: '0341-455-8080', email: 'ventas@hierroslitoral.com', direccion: 'Uriburu 2500' }, { id: 2, nombre: 'Aberturas Rosario', cuit: '30-12312312-3', telefono: '0341-433-2020', email: 'info@aberturasrosario.com', direccion: 'Ov. Lagos 3100' }, { id: 3, nombre: 'El Tornillo de Oro', cuit: '20-99887766-5', telefono: '0341-466-1010', email: 'tornillos@oro.com', direccion: 'San Nicolás 1500' } ];
-    const insumosToInsert = [ { id: 1, nombre: 'Generador Diesel 5kW', stock: 10, unidad: 'unidad', estado: 'Disponible', precio_unitario: 1500000.00, cantidad_pendiente: 0 }, { id: 2, nombre: 'Cable Subterráneo 2x4mm', stock: 500, unidad: 'metro', estado: 'Disponible', precio_unitario: 1200.50, cantidad_pendiente: 0 }, { id: 3, nombre: 'Aceite Sintético para Motor 1L', stock: 50, unidad: 'unidad', estado: 'Disponible', precio_unitario: 15000.75, cantidad_pendiente: 0 }, { id: 4, nombre: 'Filtro de Aire para Generador', stock: 30, unidad: 'unidad', estado: 'Disponible', precio_unitario: 8500.00, cantidad_pendiente: 2 }, { id: 5, nombre: 'Servicio de Instalación Estándar', stock: 1000, unidad: 'hora', estado: 'Disponible', precio_unitario: 25000.00, cantidad_pendiente: 0 }, { id: 6, nombre: 'Batería de Arranque 12V 75Ah', stock: 15, unidad: 'unidad', estado: 'Disponible', precio_unitario: 95000.00, cantidad_pendiente: 0 } ];
+    const insumosToInsert = [
+        { id: 1, nombre: 'Generador Diesel 5kW', stock: 10, unidad: 'unidad', es_recurrente: 0, precio_unitario: 1500000.00 },
+        { id: 2, nombre: 'Cable Subterráneo 2x4mm', stock: 500, unidad: 'metro', es_recurrente: 0, precio_unitario: 1200.50 },
+        { id: 5, nombre: 'Abono Mantenimiento Básico', stock: 1000, unidad: 'servicio', es_recurrente: 1, precio_unitario: 25000.00 },
+        // ... otros insumos
+    ];
 
     await seedTableIfEmpty('clientes', clientesToInsert, ['id', 'nombre', 'cuit', 'direccion', 'telefono', 'email']);
     await seedTableIfEmpty('proveedores', proveedoresToInsert, ['id', 'nombre', 'cuit', 'telefono', 'email', 'direccion']);
-    await seedTableIfEmpty('insumos', insumosToInsert, ['id', 'nombre', 'stock', 'unidad', 'estado', 'precio_unitario', 'cantidad_pendiente']);
+    await seedTableIfEmpty('insumos', insumosToInsert, ['id', 'nombre', 'stock', 'unidad', 'estado', 'es_recurrente','precio_unitario', 'cantidad_pendiente']);
     
     // Conceptos de C/C
     const conceptosCC = [ { nombre: 'Factura de Venta', tipo: 'DEBE', requiere_aplicacion: 0 }, { nombre: 'Nota de Débito (Servicios)', tipo: 'DEBE', requiere_aplicacion: 0 }, { nombre: 'Pago de Cliente', tipo: 'HABER', requiere_aplicacion: 1 }, { nombre: 'Nota de Crédito', tipo: 'HABER', requiere_aplicacion: 0 } ];

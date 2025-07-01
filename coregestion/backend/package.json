@@ -20,9 +20,13 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "node-cron": "^4.1.1",
     "nodemailer": "^7.0.3",
     "pdfkit": "^0.17.1",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "cypress": "^14.5.0"
   }
 }
