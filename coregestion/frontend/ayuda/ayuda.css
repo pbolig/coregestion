@@ -1,0 +1,94 @@
+/* frontend/ayuda/ayuda.css */
+
+/* Estilos Generales del Cuerpo del Manual */
+body {
+    background-color: #f3f4f6; /* Un gris muy claro de fondo */
+    display: flex;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.manual-content {
+    background-color: #ffffff;
+    max-width: 900px;
+    width: 100%;
+    padding: 2.5rem 4rem;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.7;
+    color: #374151; /* Un gris oscuro más suave */
+}
+
+/* Títulos y Jerarquía */
+.manual-content h1, 
+.manual-content h2, 
+.manual-content h3 {
+    font-weight: 700;
+    line-height: 1.3;
+    margin-top: 2.2em;
+    margin-bottom: 1.2em;
+    padding-bottom: 0.4em;
+    border-bottom: 1px solid #e5e7eb;
+    color: #111827;
+}
+
+.manual-content h1 { font-size: 2.25em; }
+.manual-content h2 { font-size: 1.75em; }
+.manual-content h3 { font-size: 1.4em; }
+
+/* Párrafos y Listas */
+.manual-content p {
+    margin-bottom: 1.25em;
+    font-size: 1.1rem;
+    line-height: 1.8;
+}
+
+.manual-content ul, .manual-content ol {
+    padding-left: 2em;
+    margin-bottom: 1.25em;
+    font-size: 1.1rem;
+}
+
+.manual-content li {
+    margin-bottom: 0.6em;
+}
+
+/* Imágenes */
+.manual-content img {
+    max-width: 60%;
+    margin: 2.5rem auto;
+    display: block;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    border: 1px solid #ddd;
+}
+
+/* Enlaces del Índice */
+.manual-content a {
+    color: #2563eb; /* Azul primario del sistema */
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease-in-out, border-bottom 0.2s ease-in-out;
+    border-bottom: 1px solid transparent;
+}
+
+.manual-content a:hover {
+    border-bottom: 1px solid #2563eb;
+    color: #1d4ed8;
+}
+
+/* Separadores */
+.manual-content hr {
+    height: 2px;
+    padding: 0;
+    margin: 3.5rem 0;
+    background-color: #e5e7eb;
+    border: 0;
+}
+
+.manual-content strong {
+    font-weight: 600;
+    color: #111827;
+}

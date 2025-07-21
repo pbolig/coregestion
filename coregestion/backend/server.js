@@ -7,19 +7,21 @@ const morgan = require('morgan');
 require('dotenv').config();
 const db = require('./db');
 const scheduler = require('./scheduler');
+
 const app = express();
 
+// --- POLÍTICA DE SEGURIDAD ACTUALIZADA ---
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            "script-src": ["'self'", "accounts.google.com"],
+            // Se añade 'cdn.jsdelivr.net' a la lista de fuentes de script permitidas.
+            "script-src": ["'self'", "accounts.google.com", "cdn.jsdelivr.net"],
             "connect-src": ["'self'", "accounts.google.com"],
             "frame-src": ["'self'", "accounts.google.com"],
         },
     },
 }));
-
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
@@ -43,6 +45,9 @@ const conceptosCCRoutes = require('./routes/conceptos_cc');
 const facturacionRoutes = require('./routes/facturacion');
 const abonosRoutes = require('./routes/abonos');
 const reportesRoutes = require('./routes/reportes');
+const dashboardRoutes = require('./routes/dashboard');
+const ayudaRoutes = require('./routes/ayuda');
+const backupRoutes = require('./routes/backup');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
@@ -61,6 +66,9 @@ app.use('/api/conceptos-cc', conceptosCCRoutes);
 app.use('/api/facturacion', facturacionRoutes);
 app.use('/api/abonos', abonosRoutes);
 app.use('/api/reportes', reportesRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/ayuda', ayudaRoutes);
+app.use('/api/backup', backupRoutes);
 
 // RUTA CATCH-ALL
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));

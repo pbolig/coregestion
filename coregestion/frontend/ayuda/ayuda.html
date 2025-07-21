@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual de Usuario - CoreGestión</title>
+    <link rel="stylesheet" href="ayuda.css">
+</head>
+<body>
+    <article class="manual-content">
+        <h1>Manual de Usuario: Sistema CoreGestión v1.0</h1>
+        <p>Bienvenido a la guía completa de CoreGestión. Este manual está diseñado como una serie de casos de uso para mostrarle cómo cada módulo se conecta para formar un flujo de trabajo cohesivo y eficiente.</p>
+
+        <h2 id="indice">Índice de Casos de Uso</h2>
+        <ol>
+            <li><a href="#flujo-login">Acceso al Sistema</a></li>
+            <li><a href="#flujo-prospectos">De Prospecto a Cliente</a></li>
+            <li><a href="#flujo-presupuestos">Ciclo de Vida de un Presupuesto</a></li>
+            <li><a href="#flujo-cobranza">Gestión de Cobranzas</a></li>
+            <li><a href="#flujo-reportes">Análisis y Reportes</a></li>
+            <li><a href="#flujo-abonos">Servicios Recurrentes (Abonos)</a></li>
+            <li><a href="#flujo-compras">Gestión de Compras y Stock</a></li>
+            <li><a href="#flujo-clientes">Maestro de Clientes</a></li>
+            <li><a href="#flujo-insumos">Maestro de Insumos y Servicios</a></li>
+            <li><a href="#flujo-proveedores">Maestro de Proveedores</a></li>
+            <li><a href="#flujo-roles">Administración de Roles y Permisos</a></li>
+        </ol>
+        <hr>
+
+        <h2 id="flujo-login">Caso de Uso 1: Acceso al Sistema</h2>
+        <p>El sistema presenta una pantalla de bienvenida que diferencia entre el acceso para el personal interno y el portal para clientes externos, permitiendo un registro seguro y una fácil recuperación de contraseña.</p>
+        <img src="./manual_capturas/00_flujo_login/manual-00a-vista-bienvenida.png" alt="Pantalla de bienvenida de CoreGestión">
+        <img src="./manual_capturas/00_flujo_login/manual-00c-portal-clientes.png" alt="Portal de Clientes">
+
+        <hr>
+
+        <h2 id="flujo-prospectos">Caso de Uso 2: De Prospecto a Cliente</h2>
+        <p>Un nuevo cliente potencial se registra en el portal. En el módulo de <strong>Prospectos</strong>, el administrador puede ver la lista de pendientes.</p>
+        <img src="./manual_capturas/01_flujo_prospectos/manual-02-vista-prospectos.png" alt="Lista de prospectos pendientes">
+        <p>Al hacer clic en "Aprobar", el prospecto es convertido en un cliente formal y añadido a la base de datos principal, desapareciendo de la lista de pendientes.</p>
+        <img src="./manual_capturas/01_flujo_prospectos/manual-04-prospecto-convertido-en-cliente.png" alt="El nuevo cliente en la lista de clientes">
+
+        <hr>
+
+        <h2 id="flujo-presupuestos">Caso de Uso 3: Ciclo de Vida de un Presupuesto</h2>
+        <p>Una vez que un cliente está en el sistema, podemos crearle cotizaciones. El módulo de <strong>Presupuestos</strong> es el corazón del ciclo de ventas.</p>
+        <img src="./manual_capturas/02_flujo_presupuestos/manual-06-presupuesto-creado.png" alt="Captura del presupuesto recién creado">
+        <p>A medida que el negocio avanza, actualizamos el estado del presupuesto con los botones de acción, por ejemplo, a "En Ejecución" y finalmente a "Fac. Fiscal" después de pasar por la facturación interna.</p>
+        <img src="./manual_capturas/02_flujo_presupuestos/manual-11-presupuesto-facturado-fiscal.png" alt="Captura del presupuesto con Factura Fiscal emitida">
+
+        <hr>
+
+        <h2 id="flujo-cobranza">Caso de Uso 4: Gestión de Cobranzas</h2>
+        <p>Toda factura genera una deuda en la <strong>Cuenta Corriente</strong> del cliente. Desde aquí, podemos registrar un pago y aplicarlo a las facturas pendientes.</p>
+        <img src="./manual_capturas/03_flujo_cobranza/manual-12-registro-pago-parcial.png" alt="Captura del modal de registro de pago">
+        <p>El pago queda reflejado en el historial completo de movimientos del cliente, actualizando los saldos automáticamente.</p>
+        <img src="./manual_capturas/03_flujo_cobranza/manual-14-historial-con-pago.png" alt="Captura del historial de movimientos mostrando el nuevo pago">
+
+        <hr>
+
+        <h2 id="flujo-reportes">Caso de Uso 5: Análisis y Reportes</h2>
+        <p>El módulo de <strong>Reportes</strong> transforma los datos operativos en información valiosa para entender la salud de su negocio.</p>
+        <img src="./manual_capturas/04_flujo_reportes/21-reporte-cuentas-por-cobrar.png" alt="Captura del Reporte de Cuentas por Cobrar">
+
+        <hr>
+
+        <h2 id="flujo-ventas">Caso de Uso: Ciclo de Venta</h2>
+        <p>Este flujo describe el proceso que realiza un vendedor para crear una cotización para un cliente existente y llevarla hasta la facturación.</p>
+
+        <h3 id="venta-paso-1">Paso 1: Creación del Presupuesto</h3>
+        <p>Desde el módulo de <strong>Presupuestos</strong>, el vendedor puede iniciar una nueva cotización, seleccionar un cliente ya existente de la base de datos y añadir los productos o servicios solicitados.</p>
+        <img src="./manual_capturas/05_flujo_ventas/manual-05-creacion-presupuesto-venta.png" alt="Captura del formulario de creación de presupuesto para un cliente existente">
+
+        <h3 id="venta-paso-2">Paso 2: Facturación del Servicio</h3>
+        <p>Una vez que el presupuesto ha sido aprobado por el cliente y el trabajo se ha completado (estado "En Ejecución"), el vendedor puede proceder a la facturación. Esto genera la factura interna y la deuda correspondiente en la cuenta corriente del cliente, dejando el presupuesto en estado "Facturado".</p>
+        <img src="./manual_capturas/05_flujo_ventas/manual-06-venta-facturada.png" alt="Captura de la lista de presupuestos mostrando el presupuesto recién facturado">
+
+        <hr>
+
+        <h2 id="flujo-abonos">Caso de Uso 6: Servicios Recurrentes (Abonos)</h2>
+        <p>Cuando se factura un presupuesto que contiene un servicio recurrente, el sistema activa automáticamente una suscripción. En el módulo de <strong>Abonos</strong>, puede visualizar y gestionar todas las suscripciones activas.</p>
+        <img src="./manual_capturas/06_flujo_abonos/16-modulo-abonos-con-nuevo-servicio.png" alt="Captura del módulo de Abonos mostrando el nuevo servicio activado">
+        
+        <hr>
+
+        <h2 id="flujo-compras">Caso de Uso 7: Gestión de Compras y Stock</h2>
+        <p>El sistema permite registrar compras a proveedores para reponer el inventario y actualiza el stock de los insumos automáticamente.</p>
+        <img src="./manual_capturas/07_flujo_compras/28-stock-actualizado.png" alt="Captura del módulo de Insumos mostrando el stock actualizado">
+
+        <hr>
+        
+        <h2 id="flujo-clientes">Caso de Uso 8: Maestro de Clientes</h2>
+        <p>El módulo de <strong>Clientes</strong> es su base de datos comercial. Permite crear, ver, editar y eliminar la información de las personas o empresas a las que les vende.</p>
+        <img src="./manual_capturas/08_flujo_clientes/manual-31-cliente-creado-en-lista.png" alt="Vista del módulo de Clientes">
+
+        <hr>
+
+        <h2 id="flujo-insumos">Caso de Uso 9: Maestro de Insumos y Servicios</h2>
+        <p>Este módulo es su catálogo central de productos y servicios. Aquí puede definir todo lo que su empresa compra y vende, incluyendo su precio y si se trata de un servicio recurrente.</p>
+        <img src="./manual_capturas/09_flujo_insumos/manual-36-insumo-creado-en-lista.png" alt="Vista del módulo de Insumos">
+
+        <hr>
+
+        <h2 id="flujo-proveedores">Caso de Uso 10: Maestro de Proveedores</h2>
+        <p>Mantenga una base de datos centralizada de todas las empresas a las que les realiza compras de insumos o servicios.</p>
+        <img src="./manual_capturas/12_flujo_proveedores/manual-47-proveedor-creado.png" alt="Vista del módulo de Proveedores">
+
+        <hr>
+
+        <h2 id="flujo-roles">Caso de Uso 11: Administración de Roles y Permisos</h2>
+        <p>CoreGestión cuenta con un sistema de roles que le permite controlar con precisión qué puede hacer cada usuario en la aplicación.</p>
+        <img src="./manual_capturas/11_flujo_roles/manual-44-modal-permisos-rol.png" alt="Captura del modal de edición de permisos para un rol">
+
+    </article>
+</body>
+</html>

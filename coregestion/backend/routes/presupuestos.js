@@ -16,10 +16,16 @@ const validTransitions = {
     'Facturado': ['Fac. Fiscal', 'Cancelado']
 };
 
-// --- RUTAS COMPLETAS DEL MÓDULO ---
-
+/**
+ * @route   GET /api/presupuestos
+ * @desc    Obtener todos los presupuestos con el nombre del cliente.
+ */
 router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (req, res) => {
-    const sql = `SELECT p.id, p.fecha, p.total, p.estado, c.nombre as cliente_nombre FROM presupuestos p LEFT JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC`;
+    const sql = `
+        SELECT p.id, p.fecha, p.total, p.estado, c.nombre as cliente_nombre 
+        FROM presupuestos p 
+        LEFT JOIN clientes c ON p.cliente_id = c.id 
+        ORDER BY p.id DESC`;
     try {
         const presupuestos = await db.all(sql);
         res.status(200).json(presupuestos);
@@ -28,6 +34,10 @@ router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (r
     }
 });
 
+/**
+ * @route   GET /api/presupuestos/:id
+ * @desc    Obtener un presupuesto detallado.
+ */
 router.get('/:id', authenticateToken, authorizeRoles(['admin', 'ventas']), async (req, res) => {
     try {
         const presupuesto = await db.get(`SELECT p.*, c.nombre as cliente_nombre FROM presupuestos p LEFT JOIN clientes c ON p.cliente_id = c.id WHERE p.id = ?`, [req.params.id]);
@@ -39,9 +49,14 @@ router.get('/:id', authenticateToken, authorizeRoles(['admin', 'ventas']), async
     }
 });
 
+/**
+ * @route   POST /api/presupuestos
+ * @desc    Crear un nuevo presupuesto, con lógica de stock y vinculación a solicitud.
+ */
 router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (req, res) => {
-    const { cliente_id, fecha, insumos, estado, usarStockDisponible } = req.body;
+    const { cliente_id, fecha, insumos, estado, usarStockDisponible, solicitud_origen_id } = req.body;
     if (!cliente_id || !fecha || !Array.isArray(insumos) || insumos.length === 0) return res.status(400).json({ message: 'Datos incompletos.' });
+
     try {
         await db.run('BEGIN TRANSACTION');
         if (!usarStockDisponible && estado !== 'Pendiente de Insumos') {
@@ -54,6 +69,7 @@ router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (
                 }
             }
         }
+        
         let totalCalculado = 0;
         const insumosParaProcesar = [...insumos];
         if (usarStockDisponible) {
@@ -66,8 +82,10 @@ router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (
             const insumoDB = await db.get('SELECT precio_unitario FROM insumos WHERE id = ?', [item.insumo_id]);
             totalCalculado += item.cantidad * insumoDB.precio_unitario;
         }
+
         const presResult = await db.run('INSERT INTO presupuestos (cliente_id, fecha, total, estado) VALUES (?, ?, ?, ?)', [cliente_id, fecha, totalCalculado, estado]);
         const presupuestoId = presResult.lastID;
+
         for (const item of insumosParaProcesar) {
             await db.run('INSERT INTO presupuesto_insumos (presupuesto_id, insumo_id, cantidad) VALUES (?, ?, ?)', [presupuestoId, item.insumo_id, item.cantidad]);
             if (estado === 'Pendiente de Insumos') {
@@ -77,10 +95,15 @@ router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (
                     await db.run('INSERT INTO presupuesto_pendientes (presupuesto_id, insumo_id, cantidad_necesaria) VALUES (?, ?, ?)', [presupuestoId, item.insumo_id, faltante]);
                     await db.run('UPDATE insumos SET cantidad_pendiente = cantidad_pendiente + ? WHERE id = ?', [faltante, item.insumo_id]);
                 }
-            } else if (['Aprobado por Cliente', 'En Ejecución', 'Facturado'].includes(estado)) {
+            } else if (['Aprobado por Cliente', 'En Ejecución'].includes(estado)) {
                 await db.run('UPDATE insumos SET stock = stock - ? WHERE id = ?', [item.cantidad, item.insumo_id]);
             }
         }
+        
+        if (solicitud_origen_id) {
+            await db.run("UPDATE solicitudes_presupuesto SET estado = 'Presupuestado', presupuesto_asociado_id = ? WHERE id = ?", [presupuestoId, solicitud_origen_id]);
+        }
+
         await db.run('COMMIT');
         res.status(201).json({ id: presupuestoId, message: 'Presupuesto creado exitosamente.' });
     } catch (err) {
@@ -89,6 +112,10 @@ router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (
     }
 });
 
+/**
+ * @route   PUT /api/presupuestos/:id/estado
+ * @desc    Actualizar el estado de un presupuesto siguiendo el flujo lógico.
+ */
 router.put('/:id/estado', authenticateToken, authorizeRoles(['admin', 'ventas']), async (req, res) => {
     const { nuevo_estado } = req.body;
     const { id } = req.params;
@@ -111,7 +138,7 @@ router.put('/:id/estado', authenticateToken, authorizeRoles(['admin', 'ventas'])
                 const insumoDB = await db.get('SELECT nombre, stock FROM insumos WHERE id = ?', [item.insumo_id]);
                 if (insumoDB.stock < item.cantidad) {
                     await db.run('ROLLBACK');
-                    return res.status(409).json({ message: `No se puede aprobar. Stock insuficiente para el insumo: ${insumoDB.nombre}` });
+                    return res.status(409).json({ message: `No se puede aprobar. Stock insuficiente para: ${insumoDB.nombre}` });
                 }
             }
             for (const item of insumos) {
@@ -124,11 +151,11 @@ router.put('/:id/estado', authenticateToken, authorizeRoles(['admin', 'ventas'])
             }
         }
         
+        // La lógica para 'Facturado' y 'Fac. Fiscal' se maneja en sus propias rutas para mayor claridad.
         await db.run('UPDATE presupuestos SET estado = ? WHERE id = ?', [nuevo_estado, id]);
         
         await db.run('COMMIT');
         res.status(200).json({ message: `Estado del presupuesto actualizado a "${nuevo_estado}".` });
-
     } catch (err) {
         await db.run('ROLLBACK');
         res.status(500).json({ message: 'Error al cambiar el estado del presupuesto.', error: err.message });

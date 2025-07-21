@@ -91,6 +91,26 @@ async function createTables(db) {
             FOREIGN KEY (presupuesto_origen_id) REFERENCES presupuestos(id) ON DELETE SET NULL
         );
 
+        -- TABLA: Configuración del Sistema
+        CREATE TABLE IF NOT EXISTS system_config (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
+
+        -- TABLA: Cola de Emails
+        CREATE TABLE IF NOT EXISTS email_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recipient TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL,
+            attachments TEXT, -- JSON de los adjuntos
+            status TEXT NOT NULL DEFAULT 'pendiente', -- pendiente, enviado, fallido
+            retry_count INTEGER DEFAULT 0,
+            last_attempt TEXT,
+            error_message TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
     `);
 }
 
@@ -145,6 +165,19 @@ async function seedData(db) {
     await seedTableIfEmpty('proveedores', proveedoresToInsert, ['id', 'nombre', 'cuit', 'telefono', 'email', 'direccion']);
     await seedTableIfEmpty('insumos', insumosToInsert, ['id', 'nombre', 'stock', 'unidad', 'estado', 'es_recurrente','precio_unitario', 'cantidad_pendiente']);
     
+    // Seeding para la configuración del sistema ---
+    // Usamos una función para evitar repetición
+    const insertConfig = async (key, value) => {
+        await db.run("INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)", [key, value]);
+    };
+    await insertConfig('backup_enabled', 'true');
+    await insertConfig('backup_frequency', 'diario');
+    await insertConfig('backup_notification_email', 'pedro.bolig@gmail.com');
+
+    // --- NUEVA CONFIGURACIÓN AÑADIDA ---
+    await insertConfig('backup_retention_count', '7'); // Conservar los últimos 7 backups por defecto
+    await insertConfig('backup_hour', '03'); // 3 AM por defecto
+
     // Conceptos de C/C
     const conceptosCC = [ { nombre: 'Factura de Venta', tipo: 'DEBE', requiere_aplicacion: 0 }, { nombre: 'Nota de Débito (Servicios)', tipo: 'DEBE', requiere_aplicacion: 0 }, { nombre: 'Pago de Cliente', tipo: 'HABER', requiere_aplicacion: 1 }, { nombre: 'Nota de Crédito', tipo: 'HABER', requiere_aplicacion: 0 } ];
     await seedTableIfEmpty('conceptos_cc', conceptosCC, ['nombre', 'tipo', 'requiere_aplicacion']);

@@ -75,13 +75,14 @@ async function loadInsumos() {
         tableBody.innerHTML = '';
         allInsumosCache.forEach(insumo => {
             const row = tableBody.insertRow();
+            // --- CELDAS CON ALINEACIÓN APLICADA ---
             row.innerHTML = `
-                <td>${insumo.id}</td>
-                <td>${insumo.nombre}</td>
-                <td>${insumo.es_recurrente ? '✔️ Sí' : 'No'}</td>
-                <td>${insumo.stock}</td>
-                <td>${insumo.unidad}</td>
-                <td>$${insumo.precio_unitario.toFixed(2)}</td>
+                <td class="text-right">${insumo.id}</td>
+                <td class="text-left">${insumo.nombre}</td>
+                <td class="text-center">${insumo.es_recurrente ? '✔️ Sí' : 'No'}</td>
+                <td class="text-right">${insumo.stock}</td>
+                <td class="text-left">${insumo.unidad}</td>
+                <td class="text-right">$${insumo.precio_unitario.toFixed(2)}</td>
                 <td class="actions-cell">
                     <button class="btn btn-sm btn-warning edit-btn" data-id="${insumo.id}">Editar</button>
                     <button class="btn btn-sm btn-danger delete-btn" data-id="${insumo.id}" data-name="${insumo.nombre}">Eliminar</button>
@@ -89,7 +90,7 @@ async function loadInsumos() {
             `;
         });
     } catch (error) {
-        tableBody.innerHTML = `<tr><td colspan="7">Error al cargar insumos: ${error.message}</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="7">Error: ${error.message}</td></tr>`;
     }
 }
 

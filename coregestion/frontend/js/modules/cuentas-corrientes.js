@@ -162,12 +162,12 @@ function renderPendingInvoices(invoices) {
     }
     invoices.forEach(f => {
         const row = tableBody.insertRow();
-        // Se añade una columna para Acciones
+        // --- CELDAS CON ALINEACIÓN APLICADA ---
         row.innerHTML = `
-            <td>#${f.id}</td>
-            <td>${new Date(f.fecha_emision).toLocaleDateString('es-AR')}</td>
-            <td>$${f.total_factura.toFixed(2)}</td>
-            <td style="color:var(--color-danger); font-weight:bold;">$${f.saldo_pendiente.toFixed(2)}</td>
+            <td class="text-right">#${f.id}</td>
+            <td class="text-left">${new Date(f.fecha_emision).toLocaleDateString('es-AR')}</td>
+            <td class="text-right">$${f.total_factura.toFixed(2)}</td>
+            <td class="text-right" style="color:var(--color-danger); font-weight:bold;">$${f.saldo_pendiente.toFixed(2)}</td>
             <td class="actions-cell">
                 <button class="btn btn-sm btn-secondary resend-btn" data-id="${f.id}" title="Reenviar Factura por Email">Reenviar</button>
             </td>
@@ -207,12 +207,13 @@ function renderMovementsHistory(movements) {
     }
     movements.forEach(mov => {
         const row = tableBody.insertRow();
+        // --- CELDAS CON ALINEACIÓN APLICADA ---
         row.innerHTML = `
-            <td>${new Date(mov.fecha).toLocaleDateString('es-AR')}</td>
-            <td>${mov.concepto_nombre}</td>
-            <td style="color: var(--color-danger); text-align: right;">${mov.tipo === 'DEBE' ? `$ ${mov.monto.toFixed(2)}` : ''}</td>
-            <td style="color: var(--color-success); text-align: right;">${mov.tipo === 'HABER' ? `$ ${mov.monto.toFixed(2)}` : ''}</td>
-            <td style="text-align: right; font-weight: bold;">$ ${mov.saldo_actual.toFixed(2)}</td>
+            <td class="text-left">${new Date(mov.fecha).toLocaleDateString('es-AR')}</td>
+            <td class="text-left">${mov.concepto_nombre}</td>
+            <td class="text-right" style="color: var(--color-danger);">${mov.tipo === 'DEBE' ? `$ ${mov.monto.toFixed(2)}` : ''}</td>
+            <td class="text-right" style="color: var(--color-success);">${mov.tipo === 'HABER' ? `$ ${mov.monto.toFixed(2)}` : ''}</td>
+            <td class="text-right" style="font-weight: bold;">$ ${mov.saldo_actual.toFixed(2)}</td>
         `;
     });
 }

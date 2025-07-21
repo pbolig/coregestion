@@ -3,16 +3,13 @@ import { fetchData } from '../api.js';
 
 let insumosCache = [];
 let proveedoresCache = [];
+let itemCounter = 0;
 
-/**
- * Función principal que renderiza la vista de Compras.
- * @param {HTMLElement} container - El elemento del DOM donde se renderizará.
- */
 export async function render(container) {
     container.innerHTML = `
-        <h2>Gestión de Compras</h2>
+        <div id="notification-area-compras" class="notification-area"></div>
+        <h2>Gestión de Compras a Proveedores</h2>
 
-        <!-- Formulario para Registrar Nueva Compra -->
         <div id="compraFormContainer" class="form-container" style="display:none;">
             <h3 id="compraFormTitle">Registrar Nueva Compra</h3>
             <form id="compraForm" style="width:100%; display:contents;">
@@ -23,7 +20,7 @@ export async function render(container) {
                 <h4>Insumos Adquiridos</h4>
                 <div id="compraItemsContainer" class="item-list-container"></div>
                 <div class="form-actions" style="justify-content: flex-start;">
-                    <button type="button" id="addCompraItemBtn" class="btn btn-secondary btn-sm">Añadir Insumo</button>
+                    <button type="button" id="addCompraItemBtn" class="btn btn-secondary btn-sm">Añadir Ítem</button>
                 </div>
 
                 <div class="form-actions" style="width: 100%; border-top: 1px solid var(--color-border); padding-top: 1.5rem; margin-top: 1rem;">
@@ -33,7 +30,6 @@ export async function render(container) {
             </form>
         </div>
 
-        <!-- Tabla de Historial de Compras -->
         <div class="table-container">
             <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                 <h3>Historial de Compras</h3>
@@ -47,7 +43,6 @@ export async function render(container) {
             </table>
         </div>
 
-        <!-- Modal para Ver Detalle de Compra (oculto por defecto) -->
         <div id="detailsModal" class="modal-overlay" style="display:none;">
             <div class="modal-content">
                 <button id="closeModalBtn" class="modal-close-btn">&times;</button>
@@ -59,9 +54,11 @@ export async function render(container) {
             .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
             .modal-content { background-color: white; padding: 2rem; border-radius: var(--border-radius-md); width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto; position: relative; }
             .modal-close-btn { position: absolute; top: 1rem; right: 1rem; font-size: 1.5rem; background: none; border: none; cursor: pointer; }
+            .notification-area { padding: 1rem; margin-bottom: 1rem; border-radius: var(--border-radius-md); display: none; text-align: center; font-weight: bold; }
+            .notification-area.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+            .notification-area.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         </style>
     `;
-
     await initializeModule();
 }
 
@@ -74,26 +71,23 @@ async function initializeModule() {
         ]);
         await loadCompras();
     } catch (error) {
-        console.error("Error inicializando el módulo de compras:", error);
-        document.getElementById('comprasTableBody').innerHTML = `<tr><td colspan="5">Error al cargar datos. ${error.message}</td></tr>`;
+        showNotification(`Error al cargar datos iniciales: ${error.message}`, 'error');
     }
 }
 
 function setupEventListeners() {
-    document.getElementById('showCompraFormBtn').addEventListener('click', () => showForm());
+    document.getElementById('showCompraFormBtn').addEventListener('click', showForm);
     document.getElementById('cancelCompraBtn').addEventListener('click', hideForm);
     document.getElementById('compraForm').addEventListener('submit', handleFormSubmit);
     document.getElementById('addCompraItemBtn').addEventListener('click', addCompraItem);
     
-    // Listeners para el modal
     document.getElementById('closeModalBtn').addEventListener('click', () => document.getElementById('detailsModal').style.display = 'none');
     document.getElementById('detailsModal').addEventListener('click', (e) => {
-        if (e.target.id === 'detailsModal') { // Cierra si se hace clic en el fondo
+        if (e.target.id === 'detailsModal') {
             document.getElementById('detailsModal').style.display = 'none';
         }
     });
 
-    // Delegación de eventos para el botón "Ver Detalle"
     document.getElementById('comprasTableBody').addEventListener('click', (e) => {
         if (e.target.classList.contains('view-btn')) {
             showPurchaseDetails(e.target.dataset.id);
@@ -109,11 +103,12 @@ async function loadCompras() {
         tableBody.innerHTML = '';
         compras.forEach(compra => {
             const row = tableBody.insertRow();
+            // --- CELDAS CON ALINEACIÓN APLICADA ---
             row.innerHTML = `
-                <td>${compra.id}</td>
-                <td>${new Date(compra.fecha_comprobante).toLocaleDateString('es-AR')}</td>
-                <td>${compra.proveedor_nombre}</td>
-                <td>$${compra.total_compra.toFixed(2)}</td>
+                <td class="text-right">${compra.id}</td>
+                <td class="text-left">${new Date(compra.fecha_comprobante).toLocaleDateString('es-AR')}</td>
+                <td class="text-left">${compra.proveedor_nombre}</td>
+                <td class="text-right">$${compra.total_compra.toFixed(2)}</td>
                 <td class="actions-cell">
                     <button class="btn btn-sm btn-info view-btn" data-id="${compra.id}">Ver Detalle</button>
                 </td>
@@ -142,21 +137,29 @@ function hideForm() {
 }
 
 function addCompraItem() {
+    itemCounter++;
     const container = document.getElementById('compraItemsContainer');
     const itemRow = document.createElement('div');
     itemRow.className = 'item-row';
-    const select = document.createElement('select');
-    select.innerHTML = '<option value="">-- Seleccionar Insumo --</option>';
-    insumosCache.forEach(i => select.add(new Option(`${i.nombre} (Stock: ${i.stock})`, i.id)));
+
+    let optionsHTML = '<option value="">-- Seleccionar Insumo --</option>';
+    insumosCache.forEach(i => {
+        optionsHTML += `<option value="${i.id}">${i.nombre} (Stock: ${i.stock})</option>`;
+    });
+
     itemRow.innerHTML = `
+        <select class="insumo-select" name="insumo_id_${itemCounter}" required>${optionsHTML}</select>
         <input type="number" placeholder="Cantidad" class="compra-quantity" min="1" required>
         <input type="number" placeholder="Precio Unitario" class="compra-price" min="0" step="0.01" required>
         <button type="button" class="btn btn-danger btn-sm remove-item-btn">X</button>
     `;
-    itemRow.prepend(select);
-    itemRow.querySelector('.remove-item-btn').addEventListener('click', () => {
-        if (container.children.length > 1) itemRow.remove();
-        else alert('Debe haber al menos un insumo en la compra.');
+    
+    itemRow.querySelector('.remove-item-btn').addEventListener('click', (e) => {
+        if (container.children.length > 1) {
+            e.target.closest('.item-row').remove();
+        } else {
+            showNotification('Debe haber al menos un insumo en la compra.', 'error');
+        }
     });
     container.appendChild(itemRow);
 }
@@ -177,7 +180,7 @@ async function handleFormSubmit(e) {
         }
     });
     if (items.length === 0) {
-        alert("Por favor, agregue y complete al menos una línea de insumo.");
+        showNotification("Por favor, agregue y complete al menos una línea de insumo.", 'error');
         return;
     }
     const compraData = {
@@ -187,25 +190,20 @@ async function handleFormSubmit(e) {
         insumos_adquiridos: items
     };
     try {
-        await fetchData('compras', { method: 'POST', body: JSON.stringify(compraData) });
-        alert('Compra registrada con éxito.');
+        const result = await fetchData('compras', { method: 'POST', body: JSON.stringify(compraData) });
+        showNotification('Compra registrada con éxito.', 'success');
         hideForm();
         await loadCompras();
     } catch (error) {
-        alert(`Error al registrar la compra: ${error.message}`);
+        showNotification(`Error al registrar la compra: ${error.message}`, 'error');
     }
 }
 
-/**
- * Muestra el detalle de una compra en un modal.
- * @param {string} compraId - El ID de la compra a detallar.
- */
 async function showPurchaseDetails(compraId) {
     const modal = document.getElementById('detailsModal');
     const modalBody = document.getElementById('modalBody');
     modalBody.innerHTML = '<p>Cargando detalles...</p>';
     modal.style.display = 'flex';
-
     try {
         const compra = await fetchData(`compras/${compraId}`);
         let detailsHtml = `
@@ -231,13 +229,20 @@ async function showPurchaseDetails(compraId) {
                 </tr>
             `;
         });
-        detailsHtml += `
-                    </tbody>
-                </table>
-            </div>
-        `;
+        detailsHtml += `</tbody></table></div>`;
         modalBody.innerHTML = detailsHtml;
     } catch (error) {
         modalBody.innerHTML = `<p class="error-message">Error al cargar el detalle: ${error.message}</p>`;
     }
+}
+
+function showNotification(message, type = 'success') {
+    const notificationArea = document.getElementById('notification-area-compras');
+    if (!notificationArea) return;
+    notificationArea.textContent = message;
+    notificationArea.className = `notification-area ${type}`;
+    notificationArea.style.display = 'block';
+    setTimeout(() => {
+        notificationArea.style.display = 'none';
+    }, 4000);
 }

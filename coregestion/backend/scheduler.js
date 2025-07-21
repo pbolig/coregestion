@@ -1,23 +1,140 @@
 // backend/scheduler.js
 const cron = require('node-cron');
 const dbPromise = require('./db');
-const { crearFacturaPDF } = require('./services/pdfService');
 const { sendEmail } = require('./services/emailService');
+const { createBackup } = require('./services/backupService');
 
 let db;
+let backupTask = null;
+
 
 /**
- * Función principal que inicializa y arranca el programador de tareas.
+ * Función principal que inicializa y arranca las tareas programadas.
  */
 async function iniciarScheduler() {
     db = await dbPromise;
-    console.log('[SCHEDULER] Programador de tareas de facturación iniciado.');
+    console.log('[SCHEDULER] Programador de tareas iniciado.');
 
-    // Se ejecuta todos los días a las 5:00 AM.
-    cron.schedule('0 5 * * *', () => {
-        console.log('[SCHEDULER] Ejecutando tarea diaria de verificación de abonos...');
-        verificarYProcesarAbonos();
+    // Tarea de reintento de correos (sin cambios)
+    cron.schedule('*/15 * * * *', () => {
+        console.log('[SCHEDULER] Ejecutando tarea de reintento de correos...');
+        // procesarColaDeEmails(); // Descomentar cuando la lógica de envío directo esté lista
     });
+
+    // Tarea de backups (ahora se reprograma dinámicamente)
+    await reprogramarBackupTask();
+}
+
+/**
+ * Lee la configuración de la DB y (re)programa la tarea de backup.
+ */
+async function reprogramarBackupTask() {
+    // Detiene la tarea anterior si existe, para evitar duplicados.
+    if (backupTask) {
+        backupTask.stop();
+    }
+
+    try {
+        const configRows = await db.all("SELECT key, value FROM system_config WHERE key LIKE 'backup_%'");
+        const settings = configRows.reduce((acc, row) => {
+            acc[row.key] = row.value;
+            return acc;
+        }, {});
+
+        if (settings.backup_enabled === 'true') {
+            const hour = settings.backup_hour || '03';
+            const cronString = settings.backup_frequency === 'semanal' 
+                ? `0 ${hour} * * 0` // Domingos a la hora especificada
+                : `0 ${hour} * * *`; // Todos los días a la hora especificada
+            
+            backupTask = cron.schedule(cronString, verificarYProcesarBackups);
+            console.log(`[SCHEDULER] Tarea de backup programada con la regla: "${cronString}"`);
+        } else {
+            console.log('[SCHEDULER] Backups automáticos desactivados. No se programó ninguna tarea.');
+        }
+    } catch (error) {
+        console.error('[SCHEDULER-ERROR] No se pudo leer la configuración para programar backups:', error);
+    }
+}
+
+/**
+ * Busca y procesa todos los correos pendientes o fallidos en la cola.
+ */
+async function procesarColaDeEmails() {
+    try {
+        const emailsAEnviar = await db.all(
+            "SELECT * FROM email_queue WHERE status = 'pendiente' OR status = 'fallido' AND retry_count < 5"
+        );
+
+        if (emailsAEnviar.length === 0) {
+            return; // No hay nada que hacer
+        }
+        
+        console.log(`[SCHEDULER-EMAIL] Se encontraron ${emailsAEnviar.length} correos para procesar.`);
+
+        for (const email of emailsAEnviar) {
+            try {
+                // Reconstruimos las opciones del correo desde los datos de la DB
+                const mailOptions = {
+                    to: email.recipient,
+                    subject: email.subject,
+                    html: email.body,
+                    attachments: email.attachments ? JSON.parse(email.attachments) : []
+                };
+                
+                // Usamos el servicio de email para el reintento
+                await sendEmail(mailOptions);
+                
+                // Si el envío es exitoso (no lanza error), actualizamos el estado
+                await db.run("UPDATE email_queue SET status = 'enviado' WHERE id = ?", [email.id]);
+                console.log(`[SCHEDULER-EMAIL] Correo ID #${email.id} reenviado con éxito.`);
+
+            } catch (error) {
+                // Si el reintento falla, actualizamos el contador y el mensaje de error
+                await db.run(
+                    "UPDATE email_queue SET retry_count = retry_count + 1, last_attempt = CURRENT_TIMESTAMP, error_message = ? WHERE id = ?",
+                    [error.message, email.id]
+                );
+                console.error(`[SCHEDULER-EMAIL] Falló el reintento para el correo ID #${email.id}.`);
+            }
+        }
+    } catch (error) {
+        console.error('[SCHEDULER-EMAIL-ERROR] Falló la tarea de procesamiento de cola:', error);
+    }
+}
+
+/**
+ * Verifica la configuración y ejecuta el backup si es necesario.
+ */
+async function verificarYProcesarBackups() {
+    try {
+        const configEnabled = await db.get("SELECT value FROM system_config WHERE key = 'backup_enabled'");
+        if (configEnabled?.value !== 'true') {
+            console.log('[SCHEDULER-BACKUP] Los backups automáticos están desactivados (verificado antes de correr).');
+            return;
+        }
+
+        console.log('[SCHEDULER-BACKUP] Iniciando proceso de backup automático...');
+        const backupFileName = await createBackup();
+
+        // Enviamos notificación por email
+        const configEmail = await db.get("SELECT value FROM system_config WHERE key = 'backup_notification_email'");
+        if (configEmail?.value) {
+            await sendEmail({
+                to: configEmail.value,
+                subject: '✅ Backup de CoreGestión Realizado con Éxito',
+                html: `
+                    <p>Hola Administrador,</p>
+                    <p>Se ha completado exitosamente el backup automático de la base de datos de CoreGestión.</p>
+                    <p><strong>Nombre del archivo:</strong> ${backupFileName}</p>
+                    <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-AR')}</p>
+                    <p>No es necesario realizar ninguna acción.</p>
+                `
+            });
+        }
+    } catch (error) {
+        console.error('[SCHEDULER-BACKUP-ERROR] Falló la tarea de backup automático:', error);
+    }
 }
 
 /**
@@ -114,4 +231,4 @@ async function procesarFacturaDeAbono(abono) {
     }
 }
 
-module.exports = { iniciarScheduler };
+module.exports = { iniciarScheduler, reprogramarBackupTask };

@@ -1,0 +1,19 @@
+{
+  "name": "coregestion-project",
+  "version": "1.0.0",
+  "description": "Proyecto principal que contiene el frontend y el backend de CoreGestión.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "test": "npx cypress open",
+    "docs:run": "npx cypress run --spec \"cypress/e2e/manual/*.cy.js\" --browser chrome --config viewportWidth=1920,viewportHeight=1080"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {
+    "cypress": "^13.13.1",
+    "fs-extra": "^11.2.0"
+  }
+}

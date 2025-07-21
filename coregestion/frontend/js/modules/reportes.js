@@ -114,32 +114,39 @@ function renderReportTable(reportName, data) {
     }
 
     const headers = Object.keys(data[0]);
-    tableHead.innerHTML = `<tr>${headers.map(h => `<th>${h.replace(/_/g, ' ').toUpperCase()}</th>`).join('')}</tr>`;
-
     const totals = {};
-    headers.forEach(h => {
-        // Inicializamos los totales para las columnas que son numéricas y no son IDs
-        if (typeof data[0][h] === 'number' && !h.toLowerCase().includes('id')) {
-            totals[h] = 0;
+
+    // --- LÓGICA MEJORADA PARA LA CABECERA ---
+    let headerHtml = '<tr>';
+    headers.forEach(header => {
+        // Determinamos la alineación basada en el tipo de dato de la primera fila
+        const isNumeric = typeof data[0][header] === 'number';
+        const alignClass = isNumeric ? 'text-right' : 'text-left';
+        headerHtml += `<th class="${alignClass}">${header.replace(/_/g, ' ').toUpperCase()}</th>`;
+        
+        if (isNumeric && !header.toLowerCase().includes('id')) {
+            totals[header] = 0;
         }
     });
+    headerHtml += '</tr>';
+    tableHead.innerHTML = headerHtml;
 
     data.forEach(row => {
         const tr = tableBody.insertRow();
         headers.forEach(header => {
             const cell = tr.insertCell();
+            const isNumeric = typeof row[header] === 'number';
+            cell.className = isNumeric ? 'text-right' : 'text-left';
+
             let value = row[header];
-            
-            // Sumar al total si es una columna numérica
             if (totals[header] !== undefined) {
                 totals[header] += value;
             }
 
-            // Formatear valores para mostrar
             if (typeof value === 'number' && (header.includes('total') || header.includes('deuda'))) {
                 value = `$${value.toFixed(2)}`;
             }
-            if (header.includes('fecha')) {
+            if (typeof value === 'string' && header.toLowerCase().includes('fecha')) {
                 value = new Date(value).toLocaleDateString('es-AR');
             }
             cell.textContent = value;
@@ -151,6 +158,9 @@ function renderReportTable(reportName, data) {
         const footerRow = tableFoot.insertRow();
         headers.forEach((header, index) => {
             const cell = footerRow.insertCell();
+            const isNumeric = typeof data[0][header] === 'number';
+            cell.className = isNumeric ? 'text-right' : 'text-left';
+
             if (index === 0) {
                 cell.textContent = 'TOTALES';
             } else if (totals[header] !== undefined) {

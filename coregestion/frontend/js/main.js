@@ -2,8 +2,6 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // Selectores de Vistas
-    const internalLoginView = document.getElementById('internalLoginView');
     const dashboardView = document.getElementById('dashboardView');
     const mainNav = document.getElementById('main-nav');
     const contentArea = document.getElementById('content-area');
@@ -15,10 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (token && user) {
         showDashboard();
     }
-    // Si no hay token, portal.js se encarga de mostrar la vista de bienvenida.
 
     function showDashboard() {
-        // Ocultar todas las vistas del portal y mostrar solo el dashboard interno
         ['welcomeView', 'internalLoginView', 'portalLoginView', 'portalRegisterView', 'portalDashboardView'].forEach(id => {
             const view = document.getElementById(id);
             if (view) view.style.display = 'none';
@@ -28,76 +24,164 @@ document.addEventListener('DOMContentLoaded', () => {
             dashboardView.style.display = 'block';
             const user = JSON.parse(localStorage.getItem('user'));
             buildNavbar(user.roles);
-            loadWelcomeView(user.username);
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', window.logout);
-            }
-        }
-    }
-
-    function buildNavbar(userRoles) {
-        mainNav.innerHTML = ''; 
-
-        const allModules = {
-            'prospectos': { title: 'Prospectos', icon: '📥', requiredRole: ['admin', 'ventas'] },
-            'clientes': { title: 'Clientes', icon: '👤', requiredRole: ['admin', 'ventas', 'cobranzas'] },
-            'proveedores': { title: 'Proveedores', icon: '🚚', requiredRole: ['admin', 'almacen', 'compras'] },
-            'insumos': { title: 'Insumos', icon: '📦', requiredRole: ['admin', 'almacen', 'ventas'] },
-            'presupuestos': { title: 'Presupuestos', icon: '📝', requiredRole: ['admin', 'ventas'] },
-            'compras': { title: 'Compras', icon: '🛒', requiredRole: ['admin', 'compras', 'almacen'] },
-            'cuentas-corrientes': { title: 'Cuentas C.', icon: '💳', requiredRole: ['admin', 'cobranzas'] },
-            'abonos': { title: 'Abonos', icon: '🔄', requiredRole: ['admin', 'cobranzas'] },
-            'reportes': { title: 'Reportes', icon: '📊', requiredRole: ['admin', 'cobranzas', 'ventas'] },
-            'usuarios': { title: 'Usuarios', icon: '👥', requiredRole: ['admin'] },
-            'roles': { title: 'Roles', icon: '⚙️', requiredRole: ['admin'] }
-        };
-
-        if (!Array.isArray(userRoles)) return;
-
-        for (const moduleId in allModules) {
-            const moduleInfo = allModules[moduleId];
-            const hasPermission = userRoles.some(userRole => moduleInfo.requiredRole.includes(userRole));
+            navigateTo('dashboard');
             
-            if (hasPermission) {
-                const link = document.createElement('a');
-                link.href = `#/${moduleId}`;
-                link.textContent = `${moduleInfo.icon} ${moduleInfo.title}`;
-                link.dataset.moduleId = moduleId;
-                mainNav.appendChild(link);
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    navigateTo(moduleId);
-                });
+            if (logoutBtn) {
+                // --- CORRECCIÓN DEFINITIVA ---
+                // Envolvemos la llamada en una función anónima para evitar pasar el objeto del evento.
+                logoutBtn.addEventListener('click', () => window.logout());
             }
         }
-    }
-
-    function loadWelcomeView(username) {
-        contentArea.innerHTML = `
-            <h2>Bienvenido, ${username}!</h2>
-            <p>Selecciona un módulo en la barra de navegación superior para comenzar a trabajar.</p>
-            <p>Fecha y hora actual: ${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</p>
-        `;
     }
 
     /**
-     * "Router" que carga módulos y les pasa parámetros.
-     * @param {string} moduleId - El ID del módulo a cargar.
-     * @param {object} [params={}] - Parámetros opcionales para pasar al módulo.
+     * Construye la barra de navegación con menús desplegables.
+     * @param {string[]} userRoles - Los roles del usuario actual.
      */
+    function buildNavbar(userRoles) {
+        const mainNav = document.getElementById('main-nav');
+        mainNav.innerHTML = ''; 
+        if (!Array.isArray(userRoles)) return;
+
+        const navStructure = {
+            'dashboard': { title: 'Dashboard', icon: '🏠', requiredRole: ['admin', 'ventas', 'cobranzas'], type: 'link' },
+            'comercial': {
+                title: 'Comercial', icon: '📈', type: 'dropdown', modules: [
+                    { id: 'prospectos', title: 'Prospectos', requiredRole: ['admin', 'ventas'] },
+                    { id: 'clientes', title: 'Clientes', requiredRole: ['admin', 'ventas', 'cobranzas'] },
+                    { id: 'presupuestos', title: 'Presupuestos', requiredRole: ['admin', 'ventas'] }
+                ]
+            },
+            'operaciones': {
+                title: 'Operaciones', icon: '🔧', type: 'dropdown', modules: [
+                    { id: 'compras', title: 'Compras', requiredRole: ['admin', 'compras', 'almacen'] },
+                    { id: 'insumos', title: 'Insumos', requiredRole: ['admin', 'almacen', 'ventas'] },
+                    { id: 'proveedores', title: 'Proveedores', requiredRole: ['admin', 'almacen', 'compras'] }
+                ]
+            },
+            'finanzas': {
+                title: 'Finanzas', icon: '💰', type: 'dropdown', modules: [
+                    { id: 'cuentas-corrientes', title: 'Cuentas C.', requiredRole: ['admin', 'cobranzas'] },
+                    { id: 'abonos', title: 'Abonos', requiredRole: ['admin', 'cobranzas'] }
+                ]
+            },
+            'reportes': { title: 'Reportes', icon: '📊', requiredRole: ['admin', 'cobranzas', 'ventas'], type: 'link' },
+            'admin': {
+                title: 'Admin', icon: '⚙️', type: 'dropdown', modules: [
+                    { id: 'usuarios', title: 'Usuarios', requiredRole: ['admin'] },
+                    { id: 'roles', title: 'Roles', requiredRole: ['admin'] },
+                    { id: 'backup', title: 'Backups', requiredRole: ['admin'] }
+                ]
+            },
+            'ayuda': { title: 'Ayuda', icon: '❓', type: 'link', isExternal: true, path: '/ayuda/ayuda.html', requiredRole: ['admin', 'ventas', 'cobranzas', 'almacen', 'compras'] }
+        };
+
+        for (const key in navStructure) {
+            const item = navStructure[key];
+            let hasPermission = false;
+
+            if (item.type === 'link') {
+                hasPermission = userRoles.some(userRole => item.requiredRole.includes(userRole));
+            } else if (item.type === 'dropdown') {
+                hasPermission = item.modules.some(mod => 
+                    userRoles.some(userRole => mod.requiredRole.includes(userRole))
+                );
+            }
+            
+            if (hasPermission) {
+                if (item.type === 'link') {
+                    mainNav.appendChild(createNavLink(item, key));
+                } else if (item.type === 'dropdown') {
+                    mainNav.appendChild(createNavDropdown(item, userRoles));
+                }
+            }
+        }
+        setupDropdownListeners();
+    }
+
+    function createNavLink(item, moduleId) {
+        const link = document.createElement('a');
+        link.textContent = `${item.icon} ${item.title}`;
+        if (item.isExternal) {
+            link.href = item.path;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+        } else {
+            link.href = `#/${moduleId}`;
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigateTo(moduleId);
+            });
+        }
+        return link;
+    }
+
+    function createNavDropdown(item, userRoles) {
+        const dropdownDiv = document.createElement('div');
+        dropdownDiv.className = 'nav-dropdown';
+
+        const button = document.createElement('button');
+        button.className = 'nav-dropdown-button';
+        button.innerHTML = `${item.icon} ${item.title} <i class="fas fa-chevron-down chevron" style="font-size: 0.7rem;"></i>`;
+        
+        const menu = document.createElement('div');
+        menu.className = 'dropdown-menu';
+
+        item.modules.forEach(mod => {
+            const hasModPermission = userRoles.some(userRole => mod.requiredRole.includes(userRole));
+            if (hasModPermission) {
+                const link = document.createElement('a');
+                link.href = `#/${mod.id}`;
+                link.textContent = mod.title;
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    navigateTo(mod.id);
+                    menu.classList.remove('active');
+                });
+                menu.appendChild(link);
+            }
+        });
+        
+        if (menu.children.length > 0) {
+            dropdownDiv.appendChild(button);
+            dropdownDiv.appendChild(menu);
+            return dropdownDiv;
+        }
+        return document.createDocumentFragment();
+    }
+
+    function setupDropdownListeners() {
+        document.addEventListener('click', (e) => {
+            const isDropdownButton = e.target.closest('.nav-dropdown-button');
+            
+            document.querySelectorAll('.dropdown-menu.active').forEach(menu => {
+                if (!isDropdownButton || !menu.previousElementSibling.isSameNode(isDropdownButton)) {
+                    menu.classList.remove('active');
+                    menu.previousElementSibling.querySelector('.chevron').style.transform = 'rotate(0deg)';
+                }
+            });
+
+            if (isDropdownButton) {
+                const menu = isDropdownButton.nextElementSibling;
+                const chevron = isDropdownButton.querySelector('.chevron');
+                menu.classList.toggle('active');
+                chevron.style.transform = menu.classList.contains('active') ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
+        });
+    }
+
     async function navigateTo(moduleId, params = {}) {
-        contentArea.innerHTML = `<h2>Cargando módulo de ${moduleId}...</h2>`;
+        const contentArea = document.getElementById('content-area');
+        contentArea.innerHTML = `<h2>Cargando módulo de ${moduleId}...</h2>`;        
         try {
             const path = `./modules/${moduleId}.js`;
             const { render } = await import(path);
-            // Pasamos los parámetros a la función render del módulo.
             render(contentArea, params);
         } catch (error) {
             console.error(`Error al cargar el módulo ${moduleId}:`, error);
             contentArea.innerHTML = `<h2>Error al cargar el módulo.</h2><p class="error-message">No se pudo encontrar el archivo <strong>${moduleId}.js</strong>.</p>`;
         }
     }
-
-     // Hacemos que la función de navegación sea accesible globalmente.
+    
     window.navigateToModule = navigateTo;
 });

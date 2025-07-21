@@ -1,362 +1,317 @@
 /* frontend/css/style.css */
 
-/* --- :ROOT - VARIABLES GLOBALES DEL TEMA --- */
-/* En este bloque definimos todos los colores, fuentes y medidas
-   para que sean fáciles de cambiar y mantener en toda la aplicación. */
+/* --- 1. Variables Globales y Sistema de Diseño --- */
 :root {
-    /* Paleta de Colores Principal */
-    --color-primary: #007bff;
-    --color-primary-dark: #0056b3;
-    --color-secondary: #6c757d;
-    --color-secondary-dark: #5a6268;
-    
-    /* Colores de Acciones y Estados */
-    --color-success: #28a745;
-    --color-success-dark: #218838;
-    --color-danger: #dc3545;
-    --color-danger-dark: #c82333;
-    --color-warning: #ffc107;
-    --color-warning-dark: #e0a800;
-    --color-info: #17a2b8;
-    
-    /* Paleta de Grises y Fondos */
-    --color-bg: #f8f9fa;
-    --color-bg-dark: #e9ecef;
-    --color-bg-surface: #ffffff;
-    --color-border: #dee2e6;
-    --color-text-primary: #212529;
-    --color-text-secondary: #495057;
-    --color-text-light: #ffffff;
-
-    /* Tipografía */
-    --font-family-base: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-    --font-size-base: 16px;
-    --font-weight-normal: 400;
-    --font-weight-bold: 700;
-
-    /* Medidas y Bordes */
-    --border-radius-sm: 4px;
-    --border-radius-md: 8px;
-    --border-radius-lg: 12px;
-    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 6px 15px rgba(0, 0, 0, 0.1);
-    
-    /* Transiciones */
-    --transition-fast: 0.2s ease;
+    --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --color-primary: #2563eb;
+    --color-primary-dark: #1d4ed8;
+    --color-secondary: #4b5563;
+    --color-success: #16a34a;
+    --color-danger: #dc2626;
+    --color-warning: #f59e0b;
+    --color-info: #3b82f6;
+    --color-text-primary: #1f2937;
+    --color-text-secondary: #6b7280;
+    --color-bg-light: #f9fafb;
+    --color-bg-medium: #f3f4f6;
+    --color-border: #e5e7eb;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --border-radius-md: 0.375rem; /* 6px */
+    --border-radius-lg: 0.5rem;  /* 8px */
 }
 
-
-/* --- ESTILOS GENERALES Y RESET --- */
-*, *::before, *::after {
+/* --- 2. Reseteo y Estilos Base --- */
+* {
+    margin: 0;
+    padding: 0;
     box-sizing: border-box;
 }
 
 body {
-    font-family: var(--font-family-base);
-    font-size: var(--font-size-base);
+    font-family: var(--font-family-sans);
+    background-color: var(--color-bg-light);
     color: var(--color-text-primary);
-    background-color: var(--color-bg);
-    margin: 0;
+    line-height: 1.6;
+}
+
+h1, h2, h3 {
+    color: var(--color-text-dark);
+    margin-bottom: 1rem;
+    line-height: 1.2;
+}
+h1 { font-size: 2rem; }
+h2 { font-size: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--color-border); }
+h3 { font-size: 1.25rem; }
+
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+a:hover {
+    color: var(--color-primary-dark);
+}
+
+/* --- 3. Layout y Componentes Principales --- */
+#app {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    
-    /* Fondo con imagen y capa semitransparente */
-    background-image: linear-gradient(rgba(248, 249, 250, 0.85), rgba(248, 249, 250, 0.85)), url('../assets/img/backgroundmain.png');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
 }
 
-
-/* --- LAYOUT Y CONTENEDORES PRINCIPALES --- */
-.container {
-    width: 95%;
-    max-width: 1400px;
-    margin: 2rem auto;
-    padding: 1.5rem;
-    background-color: var(--color-bg-surface);
-    border-radius: var(--border-radius-lg);
+header {
+    background-color: #fff;
+    padding: 0.75rem 2rem; /* Ajuste de padding */
     box-shadow: var(--shadow-md);
-    border: 1px solid var(--color-border);
-}
-
-.login-page-wrapper {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
-    flex-grow: 1;
+    z-index: 10;
 }
 
-.login-container {
-    width: 100%;
-    max-width: 400px;
-    padding: 2rem;
-    background-color: var(--color-bg-surface);
+header h1 { 
+    font-size: 1.5rem; margin: 0; 
+}
+
+#main-nav {
+    display: flex;
+    gap: 0.5rem; /* Reducimos el gap principal */
+    align-items: center;
+}
+#main-nav > a { /* Estilo para enlaces de primer nivel */
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
     border-radius: var(--border-radius-md);
-    box-shadow: var(--shadow-md);
-    text-align: center;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+#main-nav > a:hover {
+    background-color: var(--color-bg-medium);
+    color: var(--color-text-dark);
+}
+
+.nav-dropdown {
+    position: relative;
+}
+
+.nav-dropdown-button {
+    background-color: transparent;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    font-size: 1rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: var(--border-radius-md);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+.nav-dropdown-button:hover {
+    background-color: var(--color-bg-medium);
+    color: var(--color-text-dark);
+}
+.nav-dropdown-button .chevron {
+    transition: transform 0.3s ease;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    background-color: #fff;
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-lg);
+    min-width: 220px;
+    z-index: 20;
+    overflow: hidden;
+    display: none; /* Oculto por defecto */
+    animation: fadeIn 0.2s ease-out;
+}
+.dropdown-menu.active {
+    display: block;
+}
+.dropdown-menu a {
+    display: block;
+    padding: 0.75rem 1.25rem;
+    color: var(--color-text-dark);
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+.dropdown-menu a:hover {
+    background-color: var(--color-bg-medium);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 main {
     flex-grow: 1;
+    padding: 2rem;
+}
+.container {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
-
-/* --- HEADER Y NAVEGACIÓN --- */
-header {
-    background-color: #343a40;
-    color: var(--color-text-light);
-    padding: 1rem 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    box-shadow: var(--shadow-sm);
-}
-
-header h1 {
-    margin: 0;
-    font-size: 1.5rem;
-    color: var(--color-text-light);
-}
-
-/* --- CAMBIO AQUÍ --- */
-header nav {
-    display: flex;       /* Hacemos que la navegación sea un contenedor flexible */
-    flex-wrap: wrap;     /* Permite que los elementos pasen a la siguiente línea si no hay espacio */
-    align-items: center; /* Centra los elementos verticalmente */
-    gap: 1rem;           /* APLICA UN ESPACIO CONSISTENTE (1rem) ENTRE CADA ELEMENTO DEL MENÚ */
-}
-
-header nav a {
-    color: var(--color-text-light);
-    text-decoration: none;
-    /* margin-left se elimina para usar 'gap' que es más moderno y consistente */
-    padding: 0.5rem 1rem;
-    border-radius: var(--border-radius-sm);
-    transition: background-color var(--transition-fast);
-}
-/* --- FIN DEL CAMBIO --- */
-
-
-header nav a:hover {
-    background-color: var(--color-text-secondary);
-}
-
-#logoutButton {
-    background-color: var(--color-danger);
-    color: var(--color-text-light);
-    border: none;
-    border-radius: var(--border-radius-sm);
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    transition: background-color var(--transition-fast);
-}
-
-#logoutButton:hover {
-    background-color: var(--color-danger-dark);
-}
-
-
-/* --- TÍTULOS Y TEXTOS --- */
-h1, h2, h3, h4 {
-    color: var(--color-primary-dark);
-    margin-top: 0;
-    margin-bottom: 1.5rem;
-}
-
-h2 { font-size: 1.8rem; }
-h3 { font-size: 1.4rem; color: var(--color-text-primary); }
-h4 { font-size: 1.1rem; color: var(--color-text-secondary); border-bottom: 1px dashed var(--color-border); padding-bottom: 0.5rem; }
-
-.error-message {
-    color: var(--color-danger);
-    font-weight: var(--font-weight-bold);
-    margin-top: 1rem;
-}
-
-
-/* --- ESTILOS DE FORMULARIOS --- */
+/* --- 4. Formularios y Botones --- */
 .form-container {
-    background-color: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius-md);
-    padding: 1.5rem;
-    margin-top: 2rem;
+    background-color: #fff;
+    padding: 2rem;
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 2rem;
     display: flex;
     flex-wrap: wrap;
     gap: 1.5rem;
-    align-items: flex-end;
 }
-
 .form-group {
-    flex: 1 1 250px; /* Base para 3 columnas, flexible */
     display: flex;
     flex-direction: column;
+    flex: 1 1 250px; /* Flex-grow, flex-shrink, flex-basis */
 }
-
 .form-group label {
     margin-bottom: 0.5rem;
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text-secondary);
+    font-weight: 500;
+    font-size: 0.9rem;
 }
-
 .form-group input,
-.form-group select {
-    width: 100%;
+.form-group select,
+.form-group textarea {
     padding: 0.75rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--border-radius-sm);
+    border-radius: var(--border-radius-md);
     font-size: 1rem;
-    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
-
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group textarea:focus {
     outline: none;
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
-.form-actions {
-    width: 100%;
-    display: flex;
-    justify-content: flex-start;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-
-/* --- ESTILOS DE BOTONES (Sistema de Clases) --- */
-.btn {
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: var(--font-weight-bold);
-    text-align: center;
-    transition: background-color var(--transition-fast), transform var(--transition-fast);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.btn:hover {
-    transform: translateY(-2px);
-}
-.btn:active {
-    transform: translateY(0);
-}
-
-.btn-primary { background-color: var(--color-primary); color: var(--color-text-light); }
-.btn-primary:hover { background-color: var(--color-primary-dark); }
-
-.btn-secondary { background-color: var(--color-secondary); color: var(--color-text-light); }
-.btn-secondary:hover { background-color: var(--color-secondary-dark); }
-
-.btn-danger { background-color: var(--color-danger); color: var(--color-text-light); }
-.btn-danger:hover { background-color: var(--color-danger-dark); }
-
-.btn-warning { background-color: var(--color-warning); color: var(--color-text-primary); }
-.btn-warning:hover { background-color: var(--color-warning-dark); }
-
-.btn-success { background-color: var(--color-success); color: var(--color-text-light); }
-.btn-success:hover { background-color: var(--color-success-dark); }
-
-.btn-sm { /* Botón pequeño para acciones en tablas */
-    padding: 0.4rem 0.8rem;
-    font-size: 0.85rem;
-}
-
-
-/* --- ESTILOS DE TABLAS / GRILLAS --- */
-.table-container {
-    overflow-x: auto; /* Permite scroll horizontal en pantallas chicas */
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 2rem;
-    background-color: var(--color-bg-surface);
-}
-
-th, td {
-    padding: 1rem;
-    border-bottom: 1px solid var(--color-border);
-    text-align: left;
-    vertical-align: middle;
-}
-
-thead th {
-    background-color: var(--color-bg-dark);
-    color: var(--color-text-secondary);
-    font-weight: var(--font-weight-bold);
-    text-transform: uppercase;
-    font-size: 0.9em;
-    text-align: center;
-}
-
-tbody tr {
-    transition: background-color var(--transition-fast);
-}
-
-tbody tr:hover {
-    background-color: #f0f8ff; /* Azulado claro */
-}
-
-td.actions-cell {
-    text-align: center;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap; /* Para que los botones se acomoden en pantallas chicas */
-}
-
-td input.edit-input {
-    width: 100%;
-    padding: 5px;
-    border: 1px solid var(--color-primary);
-    border-radius: var(--border-radius-sm);
-}
-
-/* Mensajes de "Cargando..." o "Error" en la tabla */
-tbody tr td[colspan] {
-    text-align: center;
-    font-style: italic;
-    color: var(--color-text-secondary);
-    padding: 2rem;
-}
-
-/* --- ESTILOS ESPECÍFICOS PARA FORMULARIOS COMPLEJOS (PRESUPUESTOS, COMPRAS) --- */
 .item-list-container {
     width: 100%;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    margin-bottom: 1rem;
 }
-
 .item-row {
     display: flex;
     gap: 1rem;
     align-items: center;
-    background-color: var(--color-bg-dark);
-    padding: 0.75rem;
-    border-radius: var(--border-radius-md);
+}
+.item-row select { flex: 3; }
+.item-row input { flex: 1; }
+
+.form-actions {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding-top: 1rem;
 }
 
-.item-row select { flex: 3; } /* El selector de insumo ocupa más espacio */
-.item-row input { flex: 1; text-align: right; }
-.item-row .btn-danger {
-    padding: 0.5rem;
-    width: 35px;
-    height: 35px;
-    line-height: 1;
-    border-radius: 50%;
+.btn {
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
 }
+.btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.btn:active { transform: translateY(0); }
+.btn-primary { background-color: var(--color-primary); color: #fff; }
+.btn-primary:hover { background-color: var(--color-primary-dark); }
+.btn-secondary { background-color: #e5e7eb; color: var(--color-text-dark); }
+.btn-secondary:hover { background-color: #d1d5db; }
+.btn-success { background-color: var(--color-success); color: #fff; }
+.btn-danger { background-color: var(--color-danger); color: #fff; }
+.btn-warning { background-color: var(--color-warning); color: #fff; }
+.btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+
+/* --- 5. Tablas y Grillas --- */
+.table-container {
+    background-color: #fff;
+    padding: 1rem;
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow-x: auto;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+th, td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    /* Alineación por defecto a la izquierda */
+    text-align: left;
+    vertical-align: middle;
+}
+th {
+    background-color: var(--color-bg-medium);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+tbody tr:hover {
+    background-color: #eff6ff;
+}
+.actions-cell {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Clases de alineación para tablas */
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+/* --- 6. Componentes Específicos --- */
+.login-page-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: var(--color-bg-medium);
+}
+.login-container {
+    background: #fff;
+    padding: 3rem;
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 450px;
+    text-align: center;
+}
+.error-message {
+    color: var(--color-danger);
+    margin-top: 1rem;
+    font-weight: 500;
+}
+.notification-area {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: var(--border-radius-md);
+    display: none;
+    text-align: center;
+    font-weight: bold;
+}
+.notification-area.success { background-color: #dcfce7; color: #166534; }
+.notification-area.error { background-color: #fee2e2; color: #991b1b; }
+.notification-area.info { background-color: #dbeafe; color: #1e40af; }
 
 
 /* --- DISEÑO RESPONSIVO --- */

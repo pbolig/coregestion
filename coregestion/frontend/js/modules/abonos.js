@@ -105,13 +105,14 @@ async function loadAbonos() {
         }
         abonosCache.forEach(abono => {
             const row = tableBody.insertRow();
+            // --- CELDAS CON ALINEACIÓN APLICADA ---
             row.innerHTML = `
-                <td>${abono.cliente_nombre}</td>
-                <td>${abono.insumo_nombre}</td>
-                <td>$${abono.monto_recurrente.toFixed(2)}</td>
-                <td>${abono.frecuencia}</td>
-                <td>${new Date(abono.proxima_fecha_facturacion).toLocaleDateString('es-AR')}</td>
-                <td><span class="status-badge ${abono.estado.toLowerCase()}">${abono.estado}</span></td>
+                <td class="text-left">${abono.cliente_nombre}</td>
+                <td class="text-left">${abono.insumo_nombre}</td>
+                <td class="text-right">$${abono.monto_recurrente.toFixed(2)}</td>
+                <td class="text-left">${abono.frecuencia}</td>
+                <td class="text-left">${new Date(abono.proxima_fecha_facturacion).toLocaleDateString('es-AR')}</td>
+                <td class="text-center"><span class="status-badge ${abono.estado.toLowerCase()}">${abono.estado}</span></td>
                 <td class="actions-cell">
                     <button class="btn btn-sm btn-warning edit-btn" data-id="${abono.id}">Editar</button>
                 </td>

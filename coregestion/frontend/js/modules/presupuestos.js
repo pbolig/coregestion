@@ -59,8 +59,8 @@ async function initializeModule(params) {
         [insumosCache, clientesCache] = await Promise.all([fetchData('insumos'), fetchData('clientes')]);
         await loadPresupuestos();
         
-        if (params.fromRequest) {
-            await showForm(null, params.fromRequest);
+        if (params.editId) {
+            await showForm(params.editId);
         }
     } catch (error) {
         showNotification(`Error al cargar datos iniciales: ${error.message}`, 'error');
@@ -83,11 +83,10 @@ function setupEventListeners() {
 async function showForm(editId = null, prefillData = null) {
     hideForm();
     const formContainer = document.getElementById('presupuestoFormContainer');
+    const form = document.getElementById('presupuestoForm');
     document.getElementById('presupuestoFecha').valueAsDate = new Date();
     
     formContainer.style.display = 'block';
-    
-    // Pasamos los datos de pre-llenado directamente a la función que puebla los selects.
     await populateSelects(prefillData);
 
     if (editId) {
@@ -111,7 +110,8 @@ async function showForm(editId = null, prefillData = null) {
         document.getElementById('presupuestoFormTitle').textContent = 'Crear Nuevo Presupuesto';
         addInsumoLine();
         if (prefillData) {
-            showNotification(`Creando presupuesto para cliente. Necesidad: "${prefillData.descripcion}"`, 'info');
+            form.dataset.solicitudOrigenId = prefillData.solicitud_origen_id;
+            showNotification(`Creando presupuesto. Necesidad: "${prefillData.descripcion}"`, 'info');
         }
     }
     calculateTotal();
@@ -129,7 +129,7 @@ async function populateSelects(prefillData = null) {
     }
     clientesCache.forEach(c => {
         const option = new Option(c.nombre, c.id);
-        if (prefillData && c.email === prefillData.prospecto_email) {
+        if (prefillData && c.id == prefillData.clienteId) {
             option.selected = true;
         }
         clienteSelect.add(option);
@@ -152,7 +152,15 @@ async function loadPresupuestos() {
             row.dataset.presupuestoId = p.id;
             let estadoHtml = p.estado;
             if (p.estado === 'Pendiente de Insumos') { checkAndMarkReady(p.id); }
-            row.innerHTML = `<td>${p.id}</td><td>${p.cliente_nombre || 'N/A'}</td><td>${new Date(p.fecha).toLocaleDateString('es-AR')}</td><td>$${p.total.toFixed(2)}</td><td data-estado-cell>${estadoHtml}</td><td class="actions-cell">${generateActionButtons(p)}</td>`;
+            // --- CELDAS CON ALINEACIÓN APLICADA ---
+            row.innerHTML = `
+                <td class="text-right">${p.id}</td>
+                <td class="text-left">${p.cliente_nombre || 'N/A'}</td>
+                <td class="text-left">${new Date(p.fecha).toLocaleDateString('es-AR')}</td>
+                <td class="text-right">$${p.total.toFixed(2)}</td>
+                <td data-estado-cell class="text-left">${estadoHtml}</td>
+                <td class="actions-cell">${generateActionButtons(p)}</td>
+            `;
         });
     } catch (error) {
         tableBody.innerHTML = `<tr><td colspan="6">Error: ${error.message}</td></tr>`;
@@ -208,15 +216,40 @@ function handleTableActions(event) {
     const presupuestoId = target.closest('tr')?.dataset.presupuestoId;
     if (!presupuestoId) return;
 
-    if (target.classList.contains('edit-btn')) showForm(presupuestoId);
-    else if (target.classList.contains('action-btn')) {
+    if (target.classList.contains('edit-btn')) {
+        showForm(presupuestoId);
+    } else if (target.classList.contains('action-btn')) {
         const action = target.dataset.action;
-        if (action === 'Facturar') showFacturacionModal(presupuestoId);
-        else if (action === 'Emitir Fiscal') emitirFacturaFiscal(presupuestoId);
-        else changePresupuestoStatus(presupuestoId, action);
-    } 
-    else if (target.classList.contains('view-btn')) showPresupuestoDetails(presupuestoId);
-    else if (target.classList.contains('view-pdf-btn')) downloadInvoicePDF(presupuestoId);
+        if (action === 'Facturar') {
+            showFacturacionModal(presupuestoId);
+        } else if (action === 'Emitir Fiscal') {
+            emitirFacturaFiscal(presupuestoId);
+        } else {
+            changePresupuestoStatus(presupuestoId, action);
+        }
+    } else if (target.classList.contains('view-btn')) {
+        showPresupuestoDetails(presupuestoId);
+    } else if (target.classList.contains('view-pdf-btn')) {
+        downloadInvoicePDF(presupuestoId);
+    }
+}
+
+/**
+ * NUEVA FUNCIÓN: Llama a la API para asignar un número fiscal a una factura.
+ * @param {string} presupuestoId El ID del presupuesto asociado a la factura.
+ */
+async function emitirFacturaFiscal(presupuestoId) {
+    if (!confirm(`¿Estás seguro de que quieres emitir la FACTURA FISCAL para el presupuesto #${presupuestoId}? Esta acción es definitiva y cambiará el estado a "Fac. Fiscal".`)) {
+        return;
+    }
+    showNotification('Emitiendo factura fiscal...', 'info');
+    try {
+        const result = await fetchData(`facturacion/presupuesto/${presupuestoId}/emitir-fiscal`, { method: 'POST' });
+        showNotification(result.message, 'success');
+        await loadPresupuestos(); // Recargar la tabla para ver el nuevo estado
+    } catch (error) {
+        showNotification(`Error al emitir la factura fiscal: ${error.message}`, 'error');
+    }
 }
 
 async function changePresupuestoStatus(id, nuevoEstado) {
@@ -385,6 +418,9 @@ function handleStockConflict(detalles, presupuestoData) {
     modal.style.display = 'flex';
 }
 
+/**
+ * Recopila los datos del formulario para enviarlos a la API.
+ */
 function getFormData() {
     const id = document.getElementById('presupuestoId').value;
     const insumos = [];
@@ -399,12 +435,19 @@ function getFormData() {
         showNotification('Verifique que todas las líneas de insumos tengan un producto y una cantidad válida.', 'error');
         return null;
     }
+    
+    // --- LÓGICA MEJORADA ---
+    // Obtenemos el ID de la solicitud de origen si existe
+    const form = document.getElementById('presupuestoForm');
+    const solicitud_origen_id = form.dataset.solicitudOrigenId || null;
+
     return {
         id: id || null,
         cliente_id: document.getElementById('presupuestoCliente').value,
         fecha: document.getElementById('presupuestoFecha').value,
         estado: document.getElementById('presupuestoEstado').value,
-        insumos: insumos
+        insumos: insumos,
+        solicitud_origen_id: solicitud_origen_id // Lo añadimos a los datos
     };
 }
 

@@ -52,7 +52,22 @@ async function loadClients() {
     try {
         const clients = await fetchData('clientes');
         tableBody.innerHTML = '';
-        clients.forEach(client => addClientRowToTable(client));
+        clients.forEach(client => {
+            const row = tableBody.insertRow();
+            row.dataset.clientId = client.id;
+            // --- CELDAS CON ALINEACIÓN APLICADA ---
+            row.innerHTML = `
+                <td class="text-right">${client.id}</td>
+                <td class="text-left">${client.nombre || ''}</td>
+                <td class="text-left">${client.cuit || ''}</td>
+                <td class="text-left">${client.email || ''}</td>
+                <td class="text-left">${client.telefono || ''}</td>
+                <td class="actions-cell">
+                    <button class="btn btn-sm btn-warning edit-btn" data-id="${client.id}">Editar</button>
+                    <button class="btn btn-sm btn-danger delete-btn" data-id="${client.id}" data-name="${client.nombre}">Eliminar</button>
+                </td>
+            `;
+        });
     } catch (error) {
         tableBody.innerHTML = `<tr><td colspan="6">Error: ${error.message}</td></tr>`;
     }

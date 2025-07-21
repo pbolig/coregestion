@@ -71,14 +71,35 @@ if (loginForm) {
 
 // --- FUNCIÓN DE LOGOUT ---
 // Esta función podrá ser llamada desde cualquier parte de la aplicación.
-function logout() {
-    // Limpiamos el token y los datos de usuario del localStorage.
+/**
+ * Función global para cerrar sesión.
+ * Limpia el almacenamiento local y redirige a la página de inicio.
+ * @param {string} [message=null] - Un mensaje opcional para mostrar al usuario.
+ */
+window.logout = function(message = null) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('portal_token');
+    localStorage.removeItem('portal_user');
     
-    // Recargamos la página. Al no haber token, se mostrará la vista de login.
-    window.location.reload();
-}
+    if (message) {
+        // Guardamos el mensaje en sessionStorage para mostrarlo después de recargar.
+        sessionStorage.setItem('logoutMessage', message);
+    }
+    
+    window.location.href = '/'; // Redirige a la página principal
+};
+
+// Al cargar la página, comprobamos si hay un mensaje de logout para mostrarlo.
+document.addEventListener('DOMContentLoaded', () => {
+    const logoutMessage = sessionStorage.getItem('logoutMessage');
+    if (logoutMessage) {
+        // Aquí podrías usar un sistema de notificaciones más elegante.
+        // Por ahora, usamos un alert.
+        alert(logoutMessage);
+        sessionStorage.removeItem('logoutMessage');
+    }
+});
 
 // Hacemos la función de logout accesible globalmente (o la exportaríamos en un sistema de módulos)
 window.logout = logout;

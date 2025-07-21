@@ -1,16 +1,15 @@
 // backend/services/emailService.js
 const nodemailer = require('nodemailer');
+const dbPromise = require('../db'); // Necesitamos acceso a la DB para la cola
 require('dotenv').config();
 
 const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS;
 
-// Verificación de seguridad al iniciar
-if (!EMAIL_USER || !EMAIL_PASS) {
-    console.error("[EMAIL-SERVICE] ERROR: Las credenciales EMAIL_USER y EMAIL_PASS no están definidas en el archivo .env. El servicio de correo no funcionará.");
-}
+let db;
+dbPromise.then(database => { db = database; }).catch(console.error);
 
-// Configuración del "transportador" de nodemailer para usar Gmail
+// La configuración del transportador no cambia.
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -18,33 +17,60 @@ const transporter = nodemailer.createTransport({
         pass: EMAIL_PASS,
     },
     tls: {
-        // Esta opción es para entornos de desarrollo y evita errores de certificado.
-        // En producción, se debería investigar la causa raíz (antivirus, proxy).
         rejectUnauthorized: false
     }
 });
 
 /**
- * Función genérica para enviar correos electrónicos.
- * @param {object} mailOptions - Un objeto con las opciones del correo (to, subject, html, attachments).
- * @returns {Promise<any>} - Una promesa que resuelve cuando el correo es enviado.
+ * Función de envío de correos mejorada con sistema de cola.
+ * Intenta enviar un correo. Si falla, lo registra en la tabla 'email_queue'.
+ * @param {object} mailOptions - Opciones del correo (to, subject, html, attachments).
  */
 async function sendEmail(mailOptions) {
-    // Se establece el remitente por defecto para todos los correos.
     const optionsWithFrom = {
         ...mailOptions,
         from: `"CoreGestión" <${EMAIL_USER}>`,
     };
 
     try {
+        // --- INTENTO DE ENVÍO ---
         console.log(`[EMAIL-SERVICE] Intentando enviar correo a: ${optionsWithFrom.to}`);
         const info = await transporter.sendMail(optionsWithFrom);
         console.log(`[EMAIL-SERVICE] Correo enviado exitosamente. Message ID: ${info.messageId}`);
         return info;
+
     } catch (error) {
-        console.error(`[EMAIL-SERVICE] Error al enviar correo:`, error);
-        // Relanzamos el error para que la ruta que lo llamó pueda manejarlo.
-        throw new Error('Falló el envío del correo electrónico.');
+        // --- LÓGICA DE FALLO: REGISTRAR EN LA COLA ---
+        console.error(`[EMAIL-SERVICE-ERROR] Falló el envío directo. Registrando en la cola de reintentos.`, error.message);
+        
+        try {
+            if (!db) {
+                db = await dbPromise; // Asegurarse de que la DB esté inicializada
+            }
+            
+            // Convertimos los adjuntos a un string JSON para guardarlos en la DB.
+            const attachmentsString = optionsWithFrom.attachments ? JSON.stringify(optionsWithFrom.attachments) : null;
+
+            await db.run(
+                `INSERT INTO email_queue (recipient, subject, body, attachments, status, error_message, retry_count) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    optionsWithFrom.to,
+                    optionsWithFrom.subject,
+                    optionsWithFrom.html,
+                    attachmentsString,
+                    'fallido', // Marcamos el estado como 'fallido'
+                    error.message,
+                    1 // Este es el primer intento (fallido)
+                ]
+            );
+            console.log(`[EMAIL-SERVICE] Correo para ${optionsWithFrom.to} encolado exitosamente para reintento.`);
+
+        } catch (dbError) {
+            console.error(`[EMAIL-SERVICE-FATAL] Falló el envío Y TAMBIÉN falló el registro en la cola de emails.`, dbError);
+        }
+        
+        // Importante: No relanzamos el error para que la aplicación principal no se detenga.
+        // La notificación al usuario de que el email falló se manejará en la ruta que llamó a esta función.
     }
 }
 

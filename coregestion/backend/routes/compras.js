@@ -66,55 +66,57 @@ router.get('/:id', authenticateToken, authorizeRoles(['admin', 'compras', 'almac
  * @access  Private (admin, compras, almacen)
  */
 router.post('/', authenticateToken, authorizeRoles(['admin', 'compras', 'almacen']), async (req, res) => {
-    const { fecha_comprobante, proveedor_id, porcentaje_descuento = 0, insumos_adquiridos } = req.body;
+    const { proveedor_id, fecha_comprobante, porcentaje_descuento, insumos_adquiridos } = req.body;
+    
+    console.log('[COMPRAS-DEBUG] Petición POST recibida en /api/compras');
+    console.log('[COMPRAS-DEBUG] Datos recibidos:', JSON.stringify(req.body, null, 2));
 
-    if (!fecha_comprobante || !proveedor_id || !Array.isArray(insumos_adquiridos) || insumos_adquiridos.length === 0) {
-        return res.status(400).json({ message: 'Datos incompletos. Se requiere fecha, proveedor y al menos un insumo.' });
+    if (!proveedor_id || !fecha_comprobante || !Array.isArray(insumos_adquiridos) || insumos_adquiridos.length === 0) {
+        return res.status(400).json({ message: 'Datos de compra incompletos.' });
     }
 
     try {
         await db.run('BEGIN TRANSACTION');
+        console.log('[COMPRAS-DEBUG] Transacción iniciada.');
 
-        let totalCompra = insumos_adquiridos.reduce((acc, item) => acc + (item.cantidad * item.precio_unitario_compra), 0);
-        if (porcentaje_descuento > 0) {
-            totalCompra *= (1 - porcentaje_descuento / 100);
-        }
+        let totalCalculado = insumos_adquiridos.reduce((sum, item) => sum + (item.cantidad * item.precio_unitario_compra), 0);
+        const descuento = totalCalculado * (porcentaje_descuento / 100);
+        const totalFinal = totalCalculado - descuento;
 
-        const compraResult = await db.run(
+        const result = await db.run(
             'INSERT INTO compras_insumos (fecha_comprobante, proveedor_id, porcentaje_descuento, total_compra) VALUES (?, ?, ?, ?)',
-            [fecha_comprobante, proveedor_id, porcentaje_descuento, totalCompra]
+            [fecha_comprobante, proveedor_id, porcentaje_descuento, totalFinal]
         );
-        const compraId = compraResult.lastID;
+        const compraId = result.lastID;
+        console.log(`[COMPRAS-DEBUG] Registro de compra creado con ID: ${compraId}`);
 
+        const stmtDetalle = await db.prepare('INSERT INTO detalle_compras_insumos (compra_id, insumo_id, cantidad, precio_unitario_compra) VALUES (?, ?, ?, ?)');
+        
         for (const item of insumos_adquiridos) {
-            await db.run('INSERT INTO detalle_compras_insumos (compra_id, insumo_id, cantidad, precio_unitario_compra) VALUES (?, ?, ?, ?)',
-                [compraId, item.insumo_id, item.cantidad, item.precio_unitario_compra]
-            );
+            console.log(`[COMPRAS-DEBUG] Procesando ítem: Insumo ID ${item.insumo_id}, Cantidad a sumar: ${item.cantidad}`);
+            
+            // --- DEPURACIÓN AVANZADA DE STOCK ---
+            const stockActual = await db.get('SELECT stock FROM insumos WHERE id = ?', [item.insumo_id]);
+            console.log(`[COMPRAS-DEBUG] Stock ANTES de la actualización para Insumo ID ${item.insumo_id}: ${stockActual.stock}`);
             
             await db.run('UPDATE insumos SET stock = stock + ? WHERE id = ?', [item.cantidad, item.insumo_id]);
             
-            const pendientes = await db.all(
-                "SELECT id, cantidad_necesaria FROM presupuesto_pendientes WHERE insumo_id = ? AND estado = 'Pendiente' ORDER BY id", 
-                [item.insumo_id]
-            );
-
-            if (pendientes.length > 0) {
-                let stockActual = (await db.get('SELECT stock FROM insumos WHERE id = ?', [item.insumo_id])).stock;
-                for (const pendiente of pendientes) {
-                    if (stockActual >= pendiente.cantidad_necesaria) {
-                        await db.run("UPDATE presupuesto_pendientes SET estado = 'Surtido' WHERE id = ?", [pendiente.id]);
-                        await db.run("UPDATE insumos SET cantidad_pendiente = MAX(0, cantidad_pendiente - ?) WHERE id = ?", [pendiente.cantidad_necesaria, item.insumo_id]);
-                    }
-                }
-            }
+            const stockNuevo = await db.get('SELECT stock FROM insumos WHERE id = ?', [item.insumo_id]);
+            console.log(`[COMPRAS-DEBUG] Stock DESPUÉS de la actualización para Insumo ID ${item.insumo_id}: ${stockNuevo.stock}`);
+            
+            await stmtDetalle.run(compraId, item.insumo_id, item.cantidad, item.precio_unitario_compra);
         }
+        
+        await stmtDetalle.finalize();
 
         await db.run('COMMIT');
-        res.status(201).json({ id: compraId, message: 'Compra registrada, stock actualizado y pendientes resueltos.' });
+        console.log('[COMPRAS-DEBUG] Transacción confirmada.');
+        res.status(201).json({ id: compraId, message: 'Compra registrada con éxito y stock actualizado.' });
 
     } catch (err) {
         await db.run('ROLLBACK');
-        res.status(500).json({ message: 'Error al registrar la compra de insumos.', error: err.message });
+        console.error('[COMPRAS-ERROR] Falló la transacción de compra:', err);
+        res.status(500).json({ message: 'Error al registrar la compra.', error: err.message });
     }
 });
 
