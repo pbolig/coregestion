@@ -1,18 +1,15 @@
 // backend/routes/prospectos.js
 const express = require('express');
 const router = express.Router();
-const dbPromise = require('../db');
+const db = require('../db'); // Importa la conexión a better-sqlite3
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
-
-let db;
-dbPromise.then(database => { db = database; }).catch(console.error);
 
 /**
  * @route   GET /api/prospectos
  * @desc    Listar todos los prospectos, con opción de filtrar por estado.
  * @access  Private (admin, ventas)
  */
-router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (req, res) => {
+router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas']), (req, res) => {
     try {
         let sql = 'SELECT id, nombre, empresa, email, telefono, estado FROM prospectos';
         const params = [];
@@ -24,7 +21,8 @@ router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (r
 
         sql += ' ORDER BY id DESC';
 
-        const prospectos = await db.all(sql, params);
+        const stmt = db.prepare(sql);
+        const prospectos = stmt.all(params);
         res.status(200).json(prospectos);
     } catch (err) {
         res.status(500).json({ message: 'Error al obtener los prospectos.', error: err.message });
@@ -36,30 +34,35 @@ router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas']), async (r
  * @desc    Aprueba un prospecto, convirtiéndolo en un cliente formal.
  * @access  Private (admin, ventas)
  */
-router.post('/:id/aprobar', authenticateToken, authorizeRoles(['admin', 'ventas']), async (req, res) => {
+router.post('/:id/aprobar', authenticateToken, authorizeRoles(['admin', 'ventas']), (req, res) => {
     const { id } = req.params;
     try {
-        await db.run('BEGIN TRANSACTION');
-        
-        const prospecto = await db.get('SELECT * FROM prospectos WHERE id = ?', [id]);
-        if (!prospecto) throw new Error('Prospecto no encontrado.');
-        if (prospecto.estado !== 'Pendiente') throw new Error(`El prospecto ya se encuentra en estado '${prospecto.estado}'.`);
+        const approveTransaction = db.transaction((prospectoId) => {
+            const prospecto = db.prepare('SELECT * FROM prospectos WHERE id = ?').get(prospectoId);
+            if (!prospecto) throw new Error('Prospecto no encontrado.');
+            if (prospecto.estado !== 'Pendiente') throw new Error(`El prospecto ya se encuentra en estado '${prospecto.estado}'.`);
 
-        const clienteData = { nombre: prospecto.nombre, cuit: null, direccion: null, telefono: prospecto.telefono, email: prospecto.email };
-        await db.run(
-            'INSERT INTO clientes (nombre, cuit, direccion, telefono, email) VALUES (?, ?, ?, ?, ?)',
-            [clienteData.nombre, clienteData.cuit, clienteData.direccion, clienteData.telefono, clienteData.email]
-        );
-        
-        await db.run("UPDATE prospectos SET estado = 'Aprobado' WHERE id = ?", [id]);
+            // Verificamos si ya existe un cliente con ese email antes de insertar
+            const existingClient = db.prepare('SELECT id FROM clientes WHERE email = ?').get(prospecto.email);
+            if (existingClient) {
+                // Lanzamos un error con un código específico para manejarlo en el catch
+                const err = new Error('Ya existe un cliente con este email.');
+                err.code = 'SQLITE_CONSTRAINT_UNIQUE';
+                throw err;
+            }
 
-        await db.run('COMMIT');
+            const clienteData = { nombre: prospecto.nombre, cuit: null, direccion: null, telefono: prospecto.telefono, email: prospecto.email };
+            db.prepare('INSERT INTO clientes (nombre, cuit, direccion, telefono, email) VALUES (?, ?, ?, ?, ?)').run(clienteData.nombre, clienteData.cuit, clienteData.direccion, clienteData.telefono, clienteData.email);
+            
+            db.prepare("UPDATE prospectos SET estado = 'Aprobado' WHERE id = ?").run(prospectoId);
+        });
+
+        approveTransaction(id);
         res.status(200).json({ message: 'Prospecto aprobado y convertido en cliente exitosamente.' });
 
     } catch (err) {
-        await db.run('ROLLBACK');
-        if(err.message.includes('UNIQUE constraint failed: clientes.email')) {
-             return res.status(409).json({ message: 'Error: Ya existe un cliente con este email.' });
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+            return res.status(409).json({ message: 'Error: Ya existe un cliente con este email.' });
         }
         res.status(500).json({ message: 'Error al aprobar el prospecto.', error: err.message });
     }
@@ -71,10 +74,11 @@ router.post('/:id/aprobar', authenticateToken, authorizeRoles(['admin', 'ventas'
  * @desc    Rechaza un prospecto.
  * @access  Private (admin, ventas)
  */
-router.post('/:id/rechazar', authenticateToken, authorizeRoles(['admin', 'ventas']), async (req, res) => {
+router.post('/:id/rechazar', authenticateToken, authorizeRoles(['admin', 'ventas']), (req, res) => {
     const { id } = req.params;
     try {
-        const result = await db.run("UPDATE prospectos SET estado = 'Rechazado' WHERE id = ? AND estado = 'Pendiente'", [id]);
+        const stmt = db.prepare("UPDATE prospectos SET estado = 'Rechazado' WHERE id = ? AND estado = 'Pendiente'");
+        const result = stmt.run(id);
         if (result.changes > 0) {
             res.status(200).json({ message: 'Prospecto rechazado exitosamente.' });
         } else {

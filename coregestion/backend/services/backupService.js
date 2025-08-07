@@ -1,7 +1,7 @@
 // backend/services/backupService.js
 const fs = require('fs-extra');
 const path = require('path');
-const dbPromise = require('../db');
+const db = require('../db'); // Importa la conexión a better-sqlite3
 
 /**
  * Crea una copia de seguridad y aplica la política de retención.
@@ -20,8 +20,8 @@ async function createBackup() {
     await fs.copy(dbPath, backupFilePath);
     console.log(`[BACKUP-SERVICE] Backup creado exitosamente: ${backupFileName}`);
 
-    // --- LÓGICA DE RETENCIÓN ---
-    await applyRetentionPolicy(backupsDir);
+    // Aplicamos la política de retención de forma asíncrona
+    applyRetentionPolicy(backupsDir).catch(err => console.error(err));
 
     return backupFileName;
 }
@@ -33,46 +33,35 @@ async function createBackup() {
 async function applyRetentionPolicy(backupsDir) {
     console.log('[BACKUP-SERVICE] Aplicando política de retención...');
     try {
-        const db = await dbPromise;
-        const config = await db.get("SELECT value FROM system_config WHERE key = 'backup_retention_count'");
+        const stmt = db.prepare("SELECT value FROM system_config WHERE key = 'backup_retention_count'");
+        const config = stmt.get();
         const retentionCount = parseInt(config?.value, 10);
 
         if (isNaN(retentionCount) || retentionCount <= 0) {
-            console.log('[BACKUP-SERVICE] Política de retención no configurada o inválida. No se eliminarán backups.');
+            console.log('[BACKUP-SERVICE] Política de retención no configurada o inválida.');
             return;
         }
 
-        const backupFiles = await fs.readdir(backupsDir);
-        const dbBackups = backupFiles.filter(f => f.endsWith('.db'));
+        const dbBackups = (await fs.readdir(backupsDir)).filter(f => f.endsWith('.db'));
 
         if (dbBackups.length > retentionCount) {
-            console.log(`[BACKUP-SERVICE] Límite de ${retentionCount} backups excedido. Se tienen ${dbBackups.length}. Eliminando los más antiguos.`);
+            console.log(`[BACKUP-SERVICE] Límite de ${retentionCount} backups excedido. Se tienen ${dbBackups.length}.`);
             
-            // Obtenemos las fechas de creación de cada archivo
             const filesWithStats = await Promise.all(
                 dbBackups.map(async file => {
-                    const filePath = path.join(backupsDir, file);
-                    const stats = await fs.stat(filePath);
+                    const stats = await fs.stat(path.join(backupsDir, file));
                     return { name: file, time: stats.birthtimeMs };
                 })
             );
 
-            // Ordenamos los archivos del más antiguo al más nuevo
             filesWithStats.sort((a, b) => a.time - b.time);
+            const filesToDelete = filesWithStats.slice(0, filesWithStats.length - retentionCount);
 
-            // Calculamos cuántos archivos hay que borrar
-            const filesToDeleteCount = filesWithStats.length - retentionCount;
-            const filesToDelete = filesWithStats.slice(0, filesToDeleteCount);
-
-            // Eliminamos los archivos más antiguos
             for (const file of filesToDelete) {
                 await fs.remove(path.join(backupsDir, file.name));
                 console.log(`[BACKUP-SERVICE] Backup antiguo eliminado: ${file.name}`);
             }
-        } else {
-            console.log('[BACKUP-SERVICE] No se excede el límite de retención. No se eliminan backups.');
         }
-
     } catch (error) {
         console.error('[BACKUP-SERVICE-ERROR] Falló la aplicación de la política de retención:', error);
     }

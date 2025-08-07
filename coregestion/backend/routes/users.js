@@ -2,21 +2,16 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const dbPromise = require('../db');
+const db = require('../db'); // Importa la conexión a better-sqlite3
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
-
-let db;
-dbPromise.then(database => { db = database; }).catch(console.error);
 
 /**
  * @route   GET /api/users
  * @desc    Obtener todos los usuarios con su lista de roles.
  * @access  Private (admin)
  */
-router.get('/', authenticateToken, authorizeRoles(['admin']), async (req, res) => {
+router.get('/', authenticateToken, authorizeRoles(['admin']), (req, res) => {
     try {
-        // Consulta SQL para unir usuarios con sus roles a través de la tabla puente.
-        // GROUP_CONCAT junta todos los nombres de los roles en un solo string separado por comas.
         const sql = `
             SELECT
                 u.id,
@@ -28,9 +23,8 @@ router.get('/', authenticateToken, authorizeRoles(['admin']), async (req, res) =
             GROUP BY u.id
             ORDER BY u.username;
         `;
-        const usersFromDb = await db.all(sql);
+        const usersFromDb = db.prepare(sql).all();
         
-        // Convertimos el string de roles (ej: "admin,ventas") en un array.
         const users = usersFromDb.map(user => ({
             ...user,
             roles: user.roles ? user.roles.split(',') : []
@@ -48,7 +42,6 @@ router.get('/', authenticateToken, authorizeRoles(['admin']), async (req, res) =
  * @access  Private (admin)
  */
 router.post('/', authenticateToken, authorizeRoles(['admin']), async (req, res) => {
-    // Ahora esperamos un array 'roleIds' en lugar de un 'role' string.
     const { username, password, roleIds } = req.body;
 
     if (!username || !password || !Array.isArray(roleIds) || roleIds.length === 0) {
@@ -56,27 +49,25 @@ router.post('/', authenticateToken, authorizeRoles(['admin']), async (req, res) 
     }
 
     try {
-        await db.run('BEGIN TRANSACTION');
-
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
         
-        const userResult = await db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword]);
-        const userId = userResult.lastID;
+        const createUserTransaction = db.transaction((user, roles) => {
+            const userResult = db.prepare('INSERT INTO users (username, password) VALUES (?, ?)').run(user.username, user.hashedPassword);
+            const userId = userResult.lastInsertRowid;
 
-        // Insertar cada asociación en la tabla user_roles.
-        const stmt = await db.prepare('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)');
-        for (const roleId of roleIds) {
-            await stmt.run(userId, roleId);
-        }
-        await stmt.finalize();
+            const stmt = db.prepare('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)');
+            for (const roleId of roles) {
+                stmt.run(userId, roleId);
+            }
+            return userId;
+        });
 
-        await db.run('COMMIT');
-        
-        res.status(201).json({ id: userId, message: 'Usuario creado y roles asignados exitosamente.' });
+        const newUserId = createUserTransaction({ username, hashedPassword }, roleIds);
+        res.status(201).json({ id: newUserId, message: 'Usuario creado y roles asignados exitosamente.' });
+
     } catch (err) {
-        await db.run('ROLLBACK');
-        if (err.message.includes('UNIQUE constraint failed: users.username')) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
             return res.status(409).json({ message: 'El nombre de usuario ya está en uso.' });
         }
         res.status(500).json({ message: 'Error al crear el usuario.', error: err.message });
@@ -97,31 +88,28 @@ router.put('/:id', authenticateToken, authorizeRoles(['admin']), async (req, res
     }
 
     try {
-        await db.run('BEGIN TRANSACTION');
-        
-        if (password) {
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(password, salt);
-            await db.run('UPDATE users SET username = ?, password = ? WHERE id = ?', [username, hashedPassword, id]);
-        } else {
-            await db.run('UPDATE users SET username = ? WHERE id = ?', [username, id]);
-        }
+        const updateUserTransaction = db.transaction(async (data) => {
+            if (data.password) {
+                const salt = await bcrypt.genSalt(10);
+                const hashedPassword = await bcrypt.hash(data.password, salt);
+                db.prepare('UPDATE users SET username = ?, password = ? WHERE id = ?').run(data.username, hashedPassword, data.id);
+            } else {
+                db.prepare('UPDATE users SET username = ? WHERE id = ?').run(data.username, data.id);
+            }
 
-        // Proceso de actualización de roles: Borrar los antiguos e insertar los nuevos.
-        await db.run('DELETE FROM user_roles WHERE user_id = ?', [id]);
-        
-        const stmt = await db.prepare('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)');
-        for (const roleId of roleIds) {
-            await stmt.run(id, roleId);
-        }
-        await stmt.finalize();
+            db.prepare('DELETE FROM user_roles WHERE user_id = ?').run(data.id);
+            
+            const stmt = db.prepare('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)');
+            for (const roleId of data.roleIds) {
+                stmt.run(data.id, roleId);
+            }
+        });
 
-        await db.run('COMMIT');
-        
+        await updateUserTransaction({ id, username, password, roleIds });
         res.status(200).json({ message: 'Usuario actualizado exitosamente.' });
+
     } catch (err) {
-        await db.run('ROLLBACK');
-        if (err.message.includes('UNIQUE constraint failed: users.username')) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
             return res.status(409).json({ message: 'El nombre de usuario ya está en uso.' });
         }
         res.status(500).json({ message: 'Error al actualizar el usuario.', error: err.message });
@@ -131,16 +119,17 @@ router.put('/:id', authenticateToken, authorizeRoles(['admin']), async (req, res
 
 /**
  * @route   DELETE /api/users/:id
- * @desc    Eliminar un usuario. La DB se encarga de borrar las asociaciones en user_roles gracias a ON DELETE CASCADE.
+ * @desc    Eliminar un usuario.
  * @access  Private (admin)
  */
-router.delete('/:id', authenticateToken, authorizeRoles(['admin']), async (req, res) => {
+router.delete('/:id', authenticateToken, authorizeRoles(['admin']), (req, res) => {
     if (parseInt(req.params.id, 10) === req.user.id) {
         return res.status(403).json({ message: 'Acción prohibida. No puede eliminar su propia cuenta.' });
     }
     
     try {
-        const result = await db.run('DELETE FROM users WHERE id = ?', [req.params.id]);
+        const stmt = db.prepare('DELETE FROM users WHERE id = ?');
+        const result = stmt.run(req.params.id);
         if (result.changes > 0) {
             res.status(200).json({ message: 'Usuario eliminado exitosamente.' });
         } else {
@@ -150,6 +139,5 @@ router.delete('/:id', authenticateToken, authorizeRoles(['admin']), async (req, 
         res.status(500).json({ message: 'Error al eliminar el usuario.', error: err.message });
     }
 });
-
 
 module.exports = router;

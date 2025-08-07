@@ -4,12 +4,15 @@ node_modules/
 # Archivos de log
 *.log
 
-# Archivos de configuración de IDE (ej. VS Code)
+# Archivos de configuracion de IDE (ej. VS Code)
 .vscode/
 
-# Archivos de compilación (si los hubiera, ej. dist/)
+# Archivos de compilacion (si los hubiera, ej. dist/)
 dist/
 build/
 
 # Archivos temporales
 tmp/
+
+# notas
+coregestion/notas.txt

@@ -1,38 +1,20 @@
 // backend/routes/clientes.js
 const express = require('express');
 const router = express.Router();
-// Importamos la PROMESA de la base de datos, no la conexión directa.
-// Esto asegura que la DB esté inicializada antes de usarla.
-const dbPromise = require('../db'); 
+const db = require('../db'); // <-- AHORA IMPORTA LA DB DIRECTAMENTE
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 
-let db;
-// Esperamos a que la promesa de la base de datos se resuelva
-dbPromise.then(database => {
-    db = database;
-}).catch(err => {
-    console.error("Error al inicializar la base de datos para las rutas de clientes:", err);
-});
-
-// --- VALIDACIÓN DE DATOS (Middleware opcional pero recomendado) ---
-const validateClienteData = (req, res, next) => {
-    const { nombre } = req.body;
-    if (!nombre || nombre.trim() === '') {
-        return res.status(400).json({ message: 'El campo "nombre" es obligatorio.' });
-    }
-    next();
-};
-
-// --- RUTAS DEL CRUD PARA CLIENTES ---
+// Ya no necesitamos la lógica de dbPromise.then(...)
 
 /**
  * @route   GET /api/clientes
  * @desc    Obtener todos los clientes
  * @access  Private (admin, ventas, cobranzas)
  */
-router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobranzas']), async (req, res) => {
+router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobranzas']), (req, res) => {
     try {
-        const clientes = await db.all('SELECT * FROM clientes ORDER BY nombre');
+        const stmt = db.prepare('SELECT * FROM clientes ORDER BY nombre');
+        const clientes = stmt.all();
         res.status(200).json(clientes);
     } catch (err) {
         res.status(500).json({ message: 'Error al obtener los clientes.', error: err.message });
@@ -44,9 +26,10 @@ router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobranzas
  * @desc    Obtener un cliente por su ID
  * @access  Private (admin, ventas, cobranzas)
  */
-router.get('/:id', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobranzas']), async (req, res) => {
+router.get('/:id', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobranzas']), (req, res) => {
     try {
-        const cliente = await db.get('SELECT * FROM clientes WHERE id = ?', [req.params.id]);
+        const stmt = db.prepare('SELECT * FROM clientes WHERE id = ?');
+        const cliente = stmt.get(req.params.id);
         if (cliente) {
             res.status(200).json(cliente);
         } else {
@@ -62,20 +45,17 @@ router.get('/:id', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobran
  * @desc    Crear un nuevo cliente
  * @access  Private (admin, ventas)
  */
-router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), validateClienteData, async (req, res) => {
+router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), (req, res) => {
     const { nombre, cuit, direccion, telefono, email } = req.body;
-    const sql = 'INSERT INTO clientes (nombre, cuit, direccion, telefono, email) VALUES (?, ?, ?, ?, ?)';
-    
+    if (!nombre) return res.status(400).json({ message: 'El nombre es requerido.' });
+
     try {
-        const result = await db.run(sql, [nombre, cuit, direccion, telefono, email]);
-        res.status(201).json({ 
-            id: result.lastID, 
-            message: 'Cliente creado exitosamente.' 
-        });
+        const stmt = db.prepare('INSERT INTO clientes (nombre, cuit, direccion, telefono, email) VALUES (?, ?, ?, ?, ?)');
+        const result = stmt.run(nombre, cuit, direccion, telefono, email);
+        res.status(201).json({ id: result.lastInsertRowid, message: 'Cliente creado exitosamente.' });
     } catch (err) {
-        // Manejo específico para CUIT duplicado
-        if (err.message.includes('UNIQUE constraint failed: clientes.cuit')) {
-            return res.status(409).json({ message: 'Error: El CUIT ingresado ya existe para otro cliente.' });
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+            return res.status(409).json({ message: 'Error: El CUIT o Email ya pertenecen a otro cliente.' });
         }
         res.status(500).json({ message: 'Error al crear el cliente.', error: err.message });
     }
@@ -86,26 +66,21 @@ router.post('/', authenticateToken, authorizeRoles(['admin', 'ventas']), validat
  * @desc    Actualizar un cliente existente
  * @access  Private (admin, ventas)
  */
-router.put('/:id', authenticateToken, authorizeRoles(['admin', 'ventas']), validateClienteData, async (req, res) => {
+router.put('/:id', authenticateToken, authorizeRoles(['admin', 'ventas']), (req, res) => {
     const { nombre, cuit, direccion, telefono, email } = req.body;
-    const sql = `UPDATE clientes SET 
-                    nombre = ?, 
-                    cuit = ?, 
-                    direccion = ?, 
-                    telefono = ?, 
-                    email = ? 
-                 WHERE id = ?`;
-                 
+    const { id } = req.params;
+
     try {
-        const result = await db.run(sql, [nombre, cuit, direccion, telefono, email, req.params.id]);
+        const stmt = db.prepare('UPDATE clientes SET nombre = ?, cuit = ?, direccion = ?, telefono = ?, email = ? WHERE id = ?');
+        const result = stmt.run(nombre, cuit, direccion, telefono, email, id);
         if (result.changes > 0) {
             res.status(200).json({ message: 'Cliente actualizado exitosamente.' });
         } else {
             res.status(404).json({ message: 'Cliente no encontrado.' });
         }
     } catch (err) {
-        if (err.message.includes('UNIQUE constraint failed: clientes.cuit')) {
-            return res.status(409).json({ message: 'Error: El CUIT ingresado ya existe para otro cliente.' });
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+            return res.status(409).json({ message: 'Error: El CUIT o Email ya pertenecen a otro cliente.' });
         }
         res.status(500).json({ message: 'Error al actualizar el cliente.', error: err.message });
     }
@@ -116,18 +91,19 @@ router.put('/:id', authenticateToken, authorizeRoles(['admin', 'ventas']), valid
  * @desc    Eliminar un cliente
  * @access  Private (admin)
  */
-router.delete('/:id', authenticateToken, authorizeRoles(['admin']), async (req, res) => {
+router.delete('/:id', authenticateToken, authorizeRoles(['admin']), (req, res) => {
+    const { id } = req.params;
     try {
-        const result = await db.run('DELETE FROM clientes WHERE id = ?', [req.params.id]);
+        const stmt = db.prepare('DELETE FROM clientes WHERE id = ?');
+        const result = stmt.run(id);
         if (result.changes > 0) {
             res.status(200).json({ message: 'Cliente eliminado exitosamente.' });
         } else {
             res.status(404).json({ message: 'Cliente no encontrado.' });
         }
     } catch (err) {
-        // Manejo de error de clave foránea
-        if (err.message.includes('FOREIGN KEY constraint failed')) {
-            return res.status(409).json({ message: 'No se puede eliminar el cliente porque tiene presupuestos o movimientos asociados.' });
+        if (err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+            return res.status(409).json({ message: 'No se puede eliminar el cliente porque tiene presupuestos o facturas asociadas.' });
         }
         res.status(500).json({ message: 'Error al eliminar el cliente.', error: err.message });
     }

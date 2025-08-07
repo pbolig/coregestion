@@ -1,18 +1,15 @@
 // backend/routes/abonos.js
 const express = require('express');
 const router = express.Router();
-const dbPromise = require('../db');
+const db = require('../db'); // Importa la conexión a better-sqlite3
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
-
-let db;
-dbPromise.then(database => { db = database; }).catch(console.error);
 
 /**
  * @route   GET /api/abonos
  * @desc    Obtener una lista de todos los abonos/suscripciones.
  * @access  Private (admin, cobranzas)
  */
-router.get('/', authenticateToken, authorizeRoles(['admin', 'cobranzas']), async (req, res) => {
+router.get('/', authenticateToken, authorizeRoles(['admin', 'cobranzas']), (req, res) => {
     try {
         const sql = `
             SELECT 
@@ -28,7 +25,8 @@ router.get('/', authenticateToken, authorizeRoles(['admin', 'cobranzas']), async
             JOIN insumos i ON a.insumo_id = i.id
             ORDER BY a.proxima_fecha_facturacion DESC;
         `;
-        const abonos = await db.all(sql);
+        const stmt = db.prepare(sql);
+        const abonos = stmt.all();
         res.status(200).json(abonos);
     } catch (err) {
         res.status(500).json({ message: 'Error al obtener los abonos.', error: err.message });
@@ -40,7 +38,7 @@ router.get('/', authenticateToken, authorizeRoles(['admin', 'cobranzas']), async
  * @desc    Actualizar un abono (ej: cambiar monto, frecuencia o cancelarlo).
  * @access  Private (admin, cobranzas)
  */
-router.put('/:id', authenticateToken, authorizeRoles(['admin', 'cobranzas']), async (req, res) => {
+router.put('/:id', authenticateToken, authorizeRoles(['admin', 'cobranzas']), (req, res) => {
     const { id } = req.params;
     const { monto_recurrente, frecuencia, proxima_fecha_facturacion, estado } = req.body;
 
@@ -57,7 +55,8 @@ router.put('/:id', authenticateToken, authorizeRoles(['admin', 'cobranzas']), as
                 estado = ?
             WHERE id = ?
         `;
-        const result = await db.run(sql, [monto_recurrente, frecuencia, proxima_fecha_facturacion, estado, id]);
+        const stmt = db.prepare(sql);
+        const result = stmt.run(monto_recurrente, frecuencia, proxima_fecha_facturacion, estado, id);
 
         if (result.changes === 0) {
             return res.status(404).json({ message: 'Abono no encontrado.' });

@@ -1,19 +1,16 @@
 // backend/routes/portal.js
 const express = require('express');
 const router = express.Router();
-const dbPromise = require('../db');
+const db = require('../db'); // Importa la conexión a better-sqlite3
 // Usamos el mismo middleware de autenticación, ya que solo valida el token.
 const { authenticateToken } = require('../middleware/auth');
-
-let db;
-dbPromise.then(database => { db = database; }).catch(console.error);
 
 /**
  * @route   POST /api/portal/solicitudes
  * @desc    Permite a un prospecto logueado enviar una nueva solicitud de presupuesto.
  * @access  Private (Solo para prospectos autenticados)
  */
-router.post('/solicitudes', authenticateToken, async (req, res) => {
+router.post('/solicitudes', authenticateToken, (req, res) => {
     const { descripcion_necesidad } = req.body;
     // El ID del prospecto lo obtenemos del token, que fue decodificado por el middleware.
     const prospectoId = req.user?.prospectoId;
@@ -29,7 +26,8 @@ router.post('/solicitudes', authenticateToken, async (req, res) => {
         const fecha_solicitud = new Date().toISOString();
         const sql = `INSERT INTO solicitudes_presupuesto (prospecto_id, fecha_solicitud, descripcion_necesidad) VALUES (?, ?, ?)`;
         
-        await db.run(sql, [prospectoId, fecha_solicitud, descripcion_necesidad]);
+        const stmt = db.prepare(sql);
+        stmt.run(prospectoId, fecha_solicitud, descripcion_necesidad);
 
         res.status(201).json({ message: 'Su solicitud ha sido enviada con éxito. Nos pondremos en contacto a la brevedad.' });
 
@@ -43,7 +41,7 @@ router.post('/solicitudes', authenticateToken, async (req, res) => {
  * @desc    Permite a un prospecto logueado ver sus propias solicitudes.
  * @access  Private (Solo para prospectos autenticados)
  */
-router.get('/solicitudes', authenticateToken, async (req, res) => {
+router.get('/solicitudes', authenticateToken, (req, res) => {
     const prospectoId = req.user?.prospectoId;
 
     if (!prospectoId) {
@@ -52,7 +50,8 @@ router.get('/solicitudes', authenticateToken, async (req, res) => {
     
     try {
         const sql = `SELECT id, fecha_solicitud, descripcion_necesidad, estado FROM solicitudes_presupuesto WHERE prospecto_id = ? ORDER BY fecha_solicitud DESC`;
-        const misSolicitudes = await db.all(sql, [prospectoId]);
+        const stmt = db.prepare(sql);
+        const misSolicitudes = stmt.all(prospectoId);
         res.status(200).json(misSolicitudes);
     } catch(err) {
         res.status(500).json({ message: 'Error al obtener sus solicitudes.', error: err.message });

@@ -1,23 +1,18 @@
 // backend/routes/insumos.js
 const express = require('express');
 const router = express.Router();
-const dbPromise = require('../db');
+const db = require('../db'); // Importa la conexión a better-sqlite3
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 
-let db;
-dbPromise.then(database => { db = database; }).catch(console.error);
-
-// Middleware de validación (sin cambios)
-const validateInsumoData = (req, res, next) => {
-    const { nombre, precio_unitario } = req.body;
-    if (!nombre || nombre.trim() === '') return res.status(400).json({ message: 'El campo "nombre" es obligatorio.' });
-    if (precio_unitario === null || isNaN(precio_unitario) || precio_unitario < 0) return res.status(400).json({ message: 'El "precio_unitario" debe ser un número no negativo.' });
-    next();
-};
-
-router.get('/', authenticateToken, authorizeRoles(['admin', 'almacen', 'ventas']), async (req, res) => {
+/**
+ * @route   GET /api/insumos
+ * @desc    Obtener todos los insumos.
+ * @access  Private (varios roles)
+ */
+router.get('/', authenticateToken, authorizeRoles(['admin', 'almacen', 'ventas']), (req, res) => {
     try {
-        const insumos = await db.all('SELECT * FROM insumos ORDER BY nombre');
+        const stmt = db.prepare('SELECT * FROM insumos ORDER BY nombre');
+        const insumos = stmt.all();
         res.status(200).json(insumos);
     } catch (err) {
         res.status(500).json({ message: 'Error al obtener los insumos.', error: err.message });
@@ -25,81 +20,100 @@ router.get('/', authenticateToken, authorizeRoles(['admin', 'almacen', 'ventas']
 });
 
 /**
- * @route   GET /api/insumos/:id/pendientes
- * @desc    NUEVA RUTA: Obtener el detalle de los presupuestos que tienen pendiente un insumo específico.
- * @access  Private (admin, almacen, compras)
+ * @route   POST /api/insumos
+ * @desc    Crear un nuevo insumo/servicio.
+ * @access  Private (admin, almacen)
  */
-router.get('/:id/pendientes', authenticateToken, authorizeRoles(['admin', 'almacen', 'compras']), async (req, res) => {
-    const { id } = req.params;
+router.post('/', authenticateToken, authorizeRoles(['admin', 'almacen']), (req, res) => {
+    const { nombre, unidad, stock, precio_unitario, es_recurrente } = req.body;
+    if (!nombre || nombre.trim() === '') {
+        return res.status(400).json({ message: 'El nombre es requerido.' });
+    }
+
     try {
         const sql = `
-            SELECT
-                pp.cantidad_necesaria,
-                p.id as presupuesto_id,
-                p.fecha,
-                c.nombre as cliente_nombre
-            FROM presupuesto_pendientes pp
-            JOIN presupuestos p ON pp.presupuesto_id = p.id
-            JOIN clientes c ON p.cliente_id = c.id
-            WHERE pp.insumo_id = ? AND pp.estado = 'Pendiente'
-            ORDER BY p.fecha;
+            INSERT INTO insumos (nombre, unidad, stock, precio_unitario, es_recurrente, estado, cantidad_pendiente) 
+            VALUES (?, ?, ?, ?, ?, 'Disponible', 0)
         `;
-        const detallesPendientes = await db.all(sql, [id]);
-        res.status(200).json(detallesPendientes);
+        const stmt = db.prepare(sql);
+        const result = stmt.run(
+            nombre,
+            unidad || 'unidad',
+            parseInt(stock, 10) || 0,
+            parseFloat(precio_unitario) || 0,
+            es_recurrente ? 1 : 0
+        );
+        
+        res.status(201).json({ id: result.lastInsertRowid, message: 'Insumo creado exitosamente.' });
     } catch (err) {
-        res.status(500).json({ message: 'Error al obtener el detalle de pendientes.', error: err.message });
-    }
-});
-
-
-router.post('/', authenticateToken, authorizeRoles(['admin', 'almacen']), validateInsumoData, async (req, res) => {
-    // AÑADIDO: Se recibe el campo es_recurrente
-    const { nombre, unidad, precio_unitario, es_recurrente } = req.body;
-    const sql = `INSERT INTO insumos (nombre, stock, unidad, es_recurrente, precio_unitario) VALUES (?, 0, ?, ?, ?)`;
-    try {
-        const result = await db.run(sql, [nombre, unidad, es_recurrente ? 1 : 0, precio_unitario]);
-        res.status(201).json({ id: result.lastID, message: 'Insumo maestro creado exitosamente.' });
-    } catch (err) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+            return res.status(409).json({ message: 'Ya existe un insumo con ese nombre.' });
+        }
         res.status(500).json({ message: 'Error al crear el insumo.', error: err.message });
     }
 });
 
-router.put('/:id', authenticateToken, authorizeRoles(['admin', 'almacen']), validateInsumoData, async (req, res) => {
-    // AÑADIDO: Se recibe el campo es_recurrente
-    const { nombre, unidad, precio_unitario, es_recurrente } = req.body;
-    const sql = `UPDATE insumos SET nombre = ?, unidad = ?, precio_unitario = ?, es_recurrente = ? WHERE id = ?`;
+/**
+ * @route   PUT /api/insumos/:id
+ * @desc    Actualizar un insumo.
+ * @access  Private (admin, almacen)
+ */
+router.put('/:id', authenticateToken, authorizeRoles(['admin', 'almacen']), (req, res) => {
+    const { id } = req.params;
+    const { nombre, unidad, stock, precio_unitario, es_recurrente } = req.body;
+    if (!nombre) return res.status(400).json({ message: 'El nombre es requerido.' });
+
     try {
-        const result = await db.run(sql, [nombre, unidad, precio_unitario, es_recurrente ? 1 : 0, req.params.id]);
+        const sql = `
+            UPDATE insumos 
+            SET nombre = ?, unidad = ?, stock = ?, precio_unitario = ?, es_recurrente = ?
+            WHERE id = ?
+        `;
+        const stmt = db.prepare(sql);
+        const result = stmt.run(
+            nombre,
+            unidad,
+            parseInt(stock, 10),
+            parseFloat(precio_unitario),
+            es_recurrente ? 1 : 0,
+            id
+        );
+
         if (result.changes > 0) {
-            res.status(200).json({ message: 'Datos maestros del insumo actualizados.' });
+            res.status(200).json({ message: 'Insumo actualizado exitosamente.' });
         } else {
             res.status(404).json({ message: 'Insumo no encontrado.' });
         }
     } catch (err) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+            return res.status(409).json({ message: 'El nombre del insumo ya está en uso.' });
+        }
         res.status(500).json({ message: 'Error al actualizar el insumo.', error: err.message });
     }
 });
 
 /**
  * @route   DELETE /api/insumos/:id
- * @desc    Eliminar un insumo maestro
+ * @desc    Eliminar un insumo.
  * @access  Private (admin, almacen)
  */
-router.delete('/:id', authenticateToken, authorizeRoles(['admin', 'almacen']), async (req, res) => {
+router.delete('/:id', authenticateToken, authorizeRoles(['admin', 'almacen']), (req, res) => {
+    const { id } = req.params;
     try {
-        const result = await db.run('DELETE FROM insumos WHERE id = ?', [req.params.id]);
+        const stmt = db.prepare('DELETE FROM insumos WHERE id = ?');
+        const result = stmt.run(id);
         if (result.changes > 0) {
             res.status(200).json({ message: 'Insumo eliminado exitosamente.' });
         } else {
             res.status(404).json({ message: 'Insumo no encontrado.' });
         }
     } catch (err) {
-        if (err.message.includes('FOREIGN KEY constraint failed')) {
-            return res.status(409).json({ message: 'Conflicto: No se puede eliminar. El insumo está siendo utilizado en presupuestos o compras.' });
+        // Error de restricción si el insumo está en uso en un presupuesto o compra
+        if (err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+            return res.status(409).json({ message: 'No se puede eliminar el insumo porque está siendo utilizado en presupuestos o compras.' });
         }
         res.status(500).json({ message: 'Error al eliminar el insumo.', error: err.message });
     }
 });
-
 
 module.exports = router;

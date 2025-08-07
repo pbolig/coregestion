@@ -1,21 +1,18 @@
-
 // backend/routes/conceptos_cc.js
 const express = require('express');
 const router = express.Router();
-const dbPromise = require('../db');
+const db = require('../db'); // Importa la conexión a better-sqlite3
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
-
-let db;
-dbPromise.then(database => { db = database; }).catch(console.error);
 
 /**
  * @route   GET /api/conceptos-cc
  * @desc    Obtener una lista de todos los conceptos de cuenta corriente.
  * @access  Private (admin, ventas, cobranzas)
  */
-router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobranzas']), async (req, res) => {
+router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobranzas']), (req, res) => {
     try {
-        const conceptos = await db.all('SELECT * FROM conceptos_cc ORDER BY nombre');
+        const stmt = db.prepare('SELECT * FROM conceptos_cc ORDER BY nombre');
+        const conceptos = stmt.all();
         res.status(200).json(conceptos);
     } catch (err) {
         res.status(500).json({ message: 'Error al obtener los conceptos de cuenta corriente.', error: err.message });
@@ -27,7 +24,7 @@ router.get('/', authenticateToken, authorizeRoles(['admin', 'ventas', 'cobranzas
  * @desc    Crear un nuevo concepto de cuenta corriente.
  * @access  Private (admin)
  */
-router.post('/', authenticateToken, authorizeRoles(['admin']), async (req, res) => {
+router.post('/', authenticateToken, authorizeRoles(['admin']), (req, res) => {
     const { nombre, tipo, requiere_aplicacion } = req.body;
 
     if (!nombre || !tipo) {
@@ -39,10 +36,11 @@ router.post('/', authenticateToken, authorizeRoles(['admin']), async (req, res) 
 
     try {
         const sql = `INSERT INTO conceptos_cc (nombre, tipo, requiere_aplicacion) VALUES (?, ?, ?)`;
-        const result = await db.run(sql, [nombre, tipo.toUpperCase(), requiere_aplicacion ? 1 : 0]);
-        res.status(201).json({ id: result.lastID, message: 'Concepto creado exitosamente.' });
+        const stmt = db.prepare(sql);
+        const result = stmt.run(nombre, tipo.toUpperCase(), requiere_aplicacion ? 1 : 0);
+        res.status(201).json({ id: result.lastInsertRowid, message: 'Concepto creado exitosamente.' });
     } catch (err) {
-        if (err.message.includes('UNIQUE constraint failed')) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
             return res.status(409).json({ message: 'Ya existe un concepto con ese nombre.' });
         }
         res.status(500).json({ message: 'Error al crear el concepto.', error: err.message });

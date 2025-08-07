@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
 const morgan = require('morgan');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const db = require('./db');
 const scheduler = require('./scheduler');
 
@@ -49,6 +49,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const ayudaRoutes = require('./routes/ayuda');
 const backupRoutes = require('./routes/backup');
 
+
 app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/portal', portalRoutes);
@@ -80,13 +81,14 @@ app.use((err, req, res, next) => {
 });
 
 // INICIO DEL SERVIDOR
+
 const PORT = process.env.PORT || 3000;
+
+// --- ARRANQUE DEL SERVIDOR ---
 app.listen(PORT, () => {
     console.log(`====================================================`);
     console.log(`Servidor backend corriendo en el puerto ${PORT}`);
     console.log(`Accede a la aplicación en: http://localhost:${PORT}`);
     console.log(`====================================================`);
-    
-    // --- INICIAMOS EL PROGRAMADOR DE TAREAS ---
-    scheduler.iniciarScheduler(); // <-- 2. LO PONEMOS EN MARCHA
+    scheduler.iniciarScheduler();
 });

@@ -1,0 +1,16 @@
+# Ignorar dependencias locales, ya que se instalan dentro del contenedor
+node_modules
+backend/node_modules
+
+# Ignorar logs y archivos de configuración sensibles
+npm-debug.log
+backend/.env
+
+# Ignorar carpetas de desarrollo y pruebas
+cypress
+manual_capturas
+release
+
+# Ignorar archivos de Git
+.git
+.gitignore
