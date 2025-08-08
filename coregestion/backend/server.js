@@ -1,94 +1,68 @@
 // backend/server.js
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
+// Le decimos a dotenv que busque el archivo .env en esta misma carpeta.
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
 const db = require('./db');
 const scheduler = require('./scheduler');
 
 const app = express();
 
-// --- POLÍTICA DE SEGURIDAD ACTUALIZADA ---
+// Middlewares
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            // Se añade 'cdn.jsdelivr.net' a la lista de fuentes de script permitidas.
             "script-src": ["'self'", "accounts.google.com", "cdn.jsdelivr.net"],
-            "connect-src": ["'self'", "accounts.google.com"],
-            "frame-src": ["'self'", "accounts.google.com"],
         },
     },
 }));
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+
+// Servir archivos estáticos del frontend
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // --- RUTAS DE API ---
-const authRoutes = require('./routes/auth');
-const publicRoutes = require('./routes/public');
-const portalRoutes = require('./routes/portal');
-const userRoutes = require('./routes/users');
-const clienteRoutes = require('./routes/clientes');
-const insumoRoutes = require('./routes/insumos');
-const presupuestoRoutes = require('./routes/presupuestos');
-const cuentaCorrienteRoutes = require('./routes/cuentas_corrientes');
-const proveedorRoutes = require('./routes/proveedores');
-const roleRoutes = require('./routes/roles');
-const compraRoutes = require('./routes/compras');
-const prospectoRoutes = require('./routes/prospectos');
-const solicitudRoutes = require('./routes/solicitudes');
-const conceptosCCRoutes = require('./routes/conceptos_cc');
-const facturacionRoutes = require('./routes/facturacion');
-const abonosRoutes = require('./routes/abonos');
-const reportesRoutes = require('./routes/reportes');
-const dashboardRoutes = require('./routes/dashboard');
-const ayudaRoutes = require('./routes/ayuda');
-const backupRoutes = require('./routes/backup');
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/public', require('./routes/public'));
+app.use('/api/portal', require('./routes/portal'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/clientes', require('./routes/clientes'));
+app.use('/api/insumos', require('./routes/insumos'));
+app.use('/api/presupuestos', require('./routes/presupuestos'));
+app.use('/api/cuentas-corrientes', require('./routes/cuentas_corrientes'));
+app.use('/api/proveedores', require('./routes/proveedores'));
+app.use('/api/roles', require('./routes/roles'));
+app.use('/api/compras', require('./routes/compras'));
+app.use('/api/solicitudes', require('./routes/solicitudes'));
+app.use('/api/conceptos-cc', require('./routes/conceptos_cc'));
+app.use('/api/facturacion', require('./routes/facturacion'));
+app.use('/api/abonos', require('./routes/abonos'));
+app.use('/api/reportes', require('./routes/reportes'));
+app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/backup', require('./routes/backup'));
+app.use('/api/ayuda', require('./routes/ayuda'));
 
-
-app.use('/api/auth', authRoutes);
-app.use('/api/public', publicRoutes);
-app.use('/api/portal', portalRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/clientes', clienteRoutes);
-app.use('/api/insumos', insumoRoutes);
-app.use('/api/presupuestos', presupuestoRoutes);
-app.use('/api/cuentas-corrientes', cuentaCorrienteRoutes);
-app.use('/api/proveedores', proveedorRoutes);
-app.use('/api/roles', roleRoutes);
-app.use('/api/compras', compraRoutes);
-app.use('/api/prospectos', prospectoRoutes);
-app.use('/api/solicitudes', solicitudRoutes);
-app.use('/api/conceptos-cc', conceptosCCRoutes);
-app.use('/api/facturacion', facturacionRoutes);
-app.use('/api/abonos', abonosRoutes);
-app.use('/api/reportes', reportesRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/ayuda', ayudaRoutes);
-app.use('/api/backup', backupRoutes);
-
-// RUTA CATCH-ALL
+// RUTA CATCH-ALL para la SPA
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../frontend/index.html')));
 
-// MANEJO DE ERRORES
+// Manejo de errores
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).send({ message: 'Algo salió mal en el servidor!', error: err.message });
 });
-
-// INICIO DEL SERVIDOR
 
 const PORT = process.env.PORT || 3000;
 
 // --- ARRANQUE DEL SERVIDOR ---
 app.listen(PORT, () => {
     console.log(`====================================================`);
-    console.log(`Servidor backend corriendo en el puerto ${PORT}`);
-    console.log(`Accede a la aplicación en: http://localhost:${PORT}`);
+    console.log(`Servidor CoreGestión corriendo en http://localhost:${PORT}`);
     console.log(`====================================================`);
     scheduler.iniciarScheduler();
 });
