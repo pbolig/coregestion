@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  coregestion:
+    build: .
+    restart: always
+    ports:
+      - "3001:3000" 
+    volumes:
+      - ./data/db:/app/backend
+      - ./data/backups:/app/backend/backups
+    environment:
+      - NODE_ENV=production
